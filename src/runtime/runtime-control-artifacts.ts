@@ -1,0 +1,13 @@
+export const WORKER_FUNCTION_REGISTRY_ARTIFACT = "worker-function-registry.json";
+export const POLICY_GATE_ARTIFACT = "policy-gate.json";
+export const BUDGET_GATE_ARTIFACT = "budget-gate.json";
+export const APPROVAL_GATE_ARTIFACT = "approval-gate.json";
+export const HOOK_LEDGER_ARTIFACT = "hook-ledger.json";
+export const TRACE_CONTEXT_ARTIFACT = "trace-context.json";
+export const FUNCTION_DISPATCH_PLAN_ARTIFACT = "function-dispatch-plan.json";
+export const PROVIDER_REPLACEMENT_REGISTRY_ARTIFACT = "provider-replacement-registry.json";
+export const RUNTIME_BUS_ARTIFACT = "runtime-bus.json";
+export const STARTUP_READINESS_ARTIFACT = "startup-readiness.json";
+export const FUNCTION_INVOCATION_LEDGER_ARTIFACT = "function-invocation-ledger.json";
+export const TOOL_SAFETY_LEDGER_ARTIFACT = "tool-safety-ledger.json";
+export const CONTEXT_BUDGET_LEDGER_ARTIFACT = "context-budget-ledger.json";

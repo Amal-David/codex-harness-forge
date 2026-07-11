@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-harness-forge.local/system-profile.schema.json",
+  "title": "SystemProfile",
+  "type": "object",
+  "required": ["id", "name", "type", "sources", "trustRank", "freshness", "vocabulary", "rules", "artifactContracts", "validators", "humanReviewPoints"],
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "type": {
+      "type": "string",
+      "enum": ["motion-system", "design-system", "codebase", "api-system", "brand-system", "release-system", "security-system", "data-system", "docs-system", "custom-skill"]
+    },
+    "sources": { "type": "array" },
+    "trustRank": { "type": "array" },
+    "version": { "type": "string" },
+    "freshness": { "type": "object" },
+    "vocabulary": { "type": "array", "items": { "type": "string" } },
+    "rules": { "type": "array" },
+    "examples": { "type": "array" },
+    "antiPatterns": { "type": "array" },
+    "artifactContracts": { "type": "array" },
+    "validators": { "type": "array" },
+    "humanReviewPoints": { "type": "array" }
+  }
+}

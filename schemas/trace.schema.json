@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-harness-forge.local/trace.schema.json",
+  "title": "HarnessTrace",
+  "type": "object",
+  "required": ["runId", "harnessSpecId", "startedAt", "userIntent", "selectedArchetype", "selectedMode", "sourcesLoaded", "sourceConflicts", "agentsSpawned", "validations", "artifacts", "finalStatus", "learningSuggestions"],
+  "properties": {
+    "runId": { "type": "string" },
+    "harnessSpecId": { "type": "string" },
+    "startedAt": { "type": "string" },
+    "completedAt": { "type": "string" },
+    "userIntent": { "type": "string" },
+    "selectedArchetype": { "type": "string" },
+    "selectedMode": { "type": "string" },
+    "sourcesLoaded": { "type": "array" },
+    "sourceConflicts": { "type": "array" },
+    "agentsSpawned": { "type": "array" },
+    "validations": { "type": "array" },
+    "artifacts": { "type": "array" },
+    "finalStatus": { "type": "string", "enum": ["success", "partial", "failed", "needs-human-review"] },
+    "learningSuggestions": { "type": "array" }
+  }
+}

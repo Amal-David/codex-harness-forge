@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <g id="base">
+    <path fill="#4f46e5" d="M96 128h320v256H96z"/>
+  </g>
+  <g id="accent">
+    <path fill="#f59e0b" d="M160 192h192v64H160z"/>
+  </g>
+</svg>

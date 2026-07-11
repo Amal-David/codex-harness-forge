@@ -1,0 +1,57 @@
+[
+  {
+    "id": "design-system-settings-app",
+    "title": "Settings Screen From Design System",
+    "mode": "standard",
+    "intent": "Build a settings app screen using the approved components and design system tokens only.",
+    "sources": ["fixtures/design-system"],
+    "expectedPackIds": ["workflow-runtime", "design-system-ui"],
+    "expectedArtifacts": ["component-inventory.json", "design-system-conformance.md"],
+    "domainFit": "specialized",
+    "notes": "Checks whether an app-building UI request derives a design-system workflow from component and token evidence."
+  },
+  {
+    "id": "animated-onboarding-brand-app",
+    "title": "Animated Onboarding Intro",
+    "mode": "deep",
+    "intent": "Build an animated onboarding app intro with a premium logo reveal and reusable Lottie controls.",
+    "sources": ["fixtures/motion/logo.svg"],
+    "durationSeconds": 4,
+    "fps": 30,
+    "width": 512,
+    "height": 512,
+    "controls": ["background", "accentColor", "speed", "cameraIntensity"],
+    "expectedPackIds": ["workflow-runtime", "motion-lottie"],
+    "expectedArtifacts": ["animation.json", "controls.json", "motion-rationale.md", "preview.html"],
+    "domainFit": "specialized",
+    "notes": "Checks whether an app-building animation request derives a motion workflow from SVG evidence and motion terms."
+  },
+  {
+    "id": "mixed-onboarding-flow",
+    "title": "Mixed UI And Motion Onboarding Flow",
+    "mode": "deep",
+    "intent": "Build a polished onboarding app flow using the design system and a logo reveal animation.",
+    "sources": ["fixtures/design-system", "fixtures/motion/logo.svg"],
+    "durationSeconds": 4,
+    "fps": 30,
+    "width": 512,
+    "height": 512,
+    "controls": ["background", "accentColor", "speed"],
+    "expectedPackIds": ["workflow-runtime", "design-system-ui", "motion-lottie"],
+    "expectedArtifacts": ["component-inventory.json", "design-system-conformance.md", "animation.json", "controls.json", "preview.html"],
+    "domainFit": "composite",
+    "notes": "Checks whether one app request can compose multiple domain packs instead of choosing one hard-coded harness branch."
+  },
+  {
+    "id": "full-stack-habit-tracker-app",
+    "title": "Full-Stack Habit Tracker PRD",
+    "mode": "standard",
+    "intent": "Build a full-stack habit tracker app with API routes, persistence, tests, and a deployable architecture workflow from this PRD.",
+    "sources": ["examples/app-building/sources/habit-tracker-prd.md"],
+    "expectedPackIds": ["workflow-runtime", "app-building-fullstack"],
+    "expectedArtifacts": ["app-blueprint.json", "ui-flow.md", "api-contract.json", "persistence-plan.md", "app-source/package.json", "app-source/src/app.js", "app-source/src/api.js", "app-source/src/model.js", "app-source/tests/app.test.js", "test-plan.md", "app-acceptance.md"],
+    "expectedFinalStatus": "success",
+    "domainFit": "app-building",
+    "notes": "Checks whether a full-stack app PRD resolves the app-building pack and emits UI, API, persistence, source-tree, test, acceptance, and deployment-planning artifacts."
+  }
+]

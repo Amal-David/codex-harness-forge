@@ -1,0 +1,196 @@
+{
+  "id": "motion-lottie",
+  "name": "Motion Lottie",
+  "description": "Capability pack for SVG-backed Lottie generation, controls, preview, and motion validation.",
+  "required": false,
+  "match": {
+    "anyTags": ["motion", "lottie", "svg", "asset-property"],
+    "anyTerms": ["motion-lottie", "lottie", "motion", "animation", "svg", "logo reveal"],
+    "sourceExtensions": [".svg"]
+  },
+  "route": {
+    "archetype": "visual-harness",
+    "systemTypes": ["motion-system"],
+    "requiredAgents": [
+      "asset-analyst",
+      "motion-director",
+      "prompt-specialist",
+      "lottie-engineer",
+      "render-qa",
+      "motion-critic",
+      "repair-agent",
+      "finalizer"
+    ],
+    "requiredValidators": [
+      "valid_json",
+      "valid_lottie_schema",
+      "duration_matches_request",
+      "fps_matches_request",
+      "dimensions_match_request",
+      "controls_exist",
+      "no_missing_image_references",
+      "no_unsupported_lottie_features",
+      "preview_generated"
+    ]
+  },
+  "artifactIds": ["motion-lottie-output"],
+  "capabilityIds": [
+    "profiler:svg-profile",
+    "agent:asset-analyst",
+    "artifact-generator:lottie-basic-reveal",
+    "validator:lottie-json",
+    "validator:lottie-controls",
+    "validator:lottie-preview"
+  ],
+  "artifacts": [
+    {
+      "id": "motion-lottie-output",
+      "type": "lottie-json",
+      "requiredFiles": ["animation.json", "controls.json", "preview.html", "validation-report.md", "harness-trace.json"],
+      "validators": [
+        "valid_json",
+        "valid_lottie_schema",
+        "duration_matches_request",
+        "fps_matches_request",
+        "dimensions_match_request",
+        "controls_exist",
+        "no_missing_image_references",
+        "no_unsupported_lottie_features",
+        "preview_generated"
+      ],
+      "validatorBindings": ["binding:lottie-json", "binding:lottie-controls", "binding:lottie-preview"],
+      "producedBy": "generate:lottie",
+      "requiredEvidenceTags": ["motion", "lottie", "svg"],
+      "humanReviewRequired": true
+    }
+  ],
+  "executors": [
+    {
+      "id": "exec:motion-lottie-artifacts",
+      "kind": "artifact-generator",
+      "capabilityIds": ["artifact-generator:lottie-basic-reveal"],
+      "adapter": "local:module",
+      "module": "dist/runtime/artifact-executors.js",
+      "exportName": "generateMotionArtifacts",
+      "required": true,
+      "produces": ["animation.json", "controls.json", "motion-rationale.md", "preview.svg", "preview.html"]
+    },
+    {
+      "id": "exec:motion-lottie-validators",
+      "kind": "validator",
+      "capabilityIds": ["validator:lottie-json", "validator:lottie-controls", "validator:lottie-preview"],
+      "adapter": "local:module",
+      "module": "dist/runtime/validator-executors.js",
+      "exportName": "runLottieValidatorsExecutor",
+      "required": true,
+      "validatorIds": [
+        "valid_json",
+        "valid_lottie_schema",
+        "duration_matches_request",
+        "fps_matches_request",
+        "dimensions_match_request",
+        "controls_exist",
+        "no_missing_image_references",
+        "no_unsupported_lottie_features",
+        "preview_generated"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "profile:svg",
+      "kind": "profile",
+      "title": "Profile SVG motion assets",
+      "capabilityId": "profiler:svg-profile",
+      "inputs": ["$sources"],
+      "outputs": [{ "id": "svg-profile", "kind": "fact", "required": true }],
+      "evidenceTags": ["motion", "lottie", "svg"]
+    },
+    {
+      "id": "analyze:asset",
+      "kind": "analyze",
+      "title": "Analyze animatable asset structure",
+      "capabilityId": "agent:asset-analyst",
+      "agentId": "asset-analyst",
+      "inputs": [{ "id": "svg-profile", "kind": "fact", "ref": "svg-profile" }],
+      "outputs": [{ "id": "asset-analysis", "kind": "report", "required": true }],
+      "evidenceTags": ["motion", "lottie", "svg"]
+    },
+    {
+      "id": "generate:lottie",
+      "kind": "generate",
+      "title": "Generate Lottie reveal bundle",
+      "capabilityId": "artifact-generator:lottie-basic-reveal",
+      "agentId": "lottie-engineer",
+      "inputs": [{ "id": "asset-analysis", "kind": "artifact", "ref": "asset-analysis" }],
+      "outputs": [{ "id": "motion-lottie-output", "kind": "artifact", "required": true }],
+      "evidenceTags": ["motion", "lottie", "svg"]
+    },
+    {
+      "id": "validate:lottie-json",
+      "kind": "validate",
+      "title": "Validate Lottie JSON",
+      "capabilityId": "validator:lottie-json",
+      "validatorId": "validator:lottie-json",
+      "inputs": [{ "id": "motion-lottie-output", "kind": "artifact", "ref": "motion-lottie-output" }],
+      "outputs": [{ "id": "validate:lottie-json:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["motion", "lottie", "svg"]
+    },
+    {
+      "id": "validate:lottie-controls",
+      "kind": "validate",
+      "title": "Validate requested Lottie controls",
+      "capabilityId": "validator:lottie-controls",
+      "validatorId": "validator:lottie-controls",
+      "inputs": [{ "id": "motion-lottie-output", "kind": "artifact", "ref": "motion-lottie-output" }],
+      "outputs": [{ "id": "validate:lottie-controls:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["motion", "lottie", "svg"]
+    },
+    {
+      "id": "validate:lottie-preview",
+      "kind": "validate",
+      "title": "Validate Lottie preview",
+      "capabilityId": "validator:lottie-preview",
+      "validatorId": "validator:lottie-preview",
+      "inputs": [{ "id": "motion-lottie-output", "kind": "artifact", "ref": "motion-lottie-output" }],
+      "outputs": [{ "id": "validate:lottie-preview:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["motion", "lottie", "svg"]
+    }
+  ],
+  "edges": [
+    { "from": "profile:source-availability", "to": "profile:svg", "reason": "SVG profiling requires available sources." },
+    { "from": "profile:svg", "to": "analyze:asset", "reason": "Asset analysis consumes SVG profile facts." },
+    { "from": "analyze:asset", "to": "generate:lottie", "reason": "Lottie generation consumes asset analysis." },
+    { "from": "$generationPrerequisite", "to": "generate:lottie", "reason": "Generation is gated by the explicit reasoning/validation strategy." },
+    { "from": "generate:lottie", "to": "validate:lottie-json", "reason": "Validate generated Lottie JSON." },
+    { "from": "generate:lottie", "to": "validate:lottie-controls", "reason": "Validate generated controls." },
+    { "from": "generate:lottie", "to": "validate:lottie-preview", "reason": "Validate generated preview." }
+  ],
+  "validatorBindings": [
+    {
+      "id": "binding:lottie-json",
+      "validatorId": "validator:lottie-json",
+      "artifactId": "motion-lottie-output",
+      "nodeId": "validate:lottie-json",
+      "required": true,
+      "evidenceTags": ["motion", "lottie", "svg"]
+    },
+    {
+      "id": "binding:lottie-controls",
+      "validatorId": "validator:lottie-controls",
+      "artifactId": "motion-lottie-output",
+      "nodeId": "validate:lottie-controls",
+      "required": true,
+      "evidenceTags": ["motion", "lottie", "svg"]
+    },
+    {
+      "id": "binding:lottie-preview",
+      "validatorId": "validator:lottie-preview",
+      "artifactId": "motion-lottie-output",
+      "nodeId": "validate:lottie-preview",
+      "required": true,
+      "evidenceTags": ["motion", "lottie", "svg"]
+    }
+  ],
+  "terminalValidators": ["validate:lottie-json", "validate:lottie-controls", "validate:lottie-preview"]
+}

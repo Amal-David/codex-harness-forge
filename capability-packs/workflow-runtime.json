@@ -1,0 +1,230 @@
+{
+  "id": "workflow-runtime",
+  "name": "Workflow Runtime",
+  "description": "Required runtime pack for persistence, flow management, council review, course correction, run state, and traceability.",
+  "required": true,
+  "match": {
+    "anyTags": ["runtime-constraint", "capability-hint"],
+    "anyTerms": ["workflow", "workflows", "harness", "run management", "persistence", "council"]
+  },
+  "capabilityIds": [
+    "agent:persistence-architect",
+    "agent:flow-runtime-manager",
+    "agent:council-gstack-critic",
+    "agent:council-gbrain-memory",
+    "agent:council-verifier",
+    "agent:council-course-corrector",
+    "validator:run-state",
+    "validator:council-review"
+  ],
+  "artifacts": [
+    {
+      "id": "workflow-runtime-state",
+      "type": "workflow-state",
+      "requiredFiles": ["run-state.json", "run-summary.json", "events.jsonl", "harness-trace.json"],
+      "validators": ["run_state_persisted"],
+      "validatorBindings": ["binding:run-state"],
+      "producedBy": "analyze:persistence",
+      "requiredEvidenceTags": ["source-availability", "runtime-constraint", "capability-hint"],
+      "humanReviewRequired": false
+    },
+    {
+      "id": "council-review",
+      "type": "review-report",
+      "requiredFiles": [
+        "council-review.json",
+        "council-review.md",
+        "council-doctrine.json",
+        "validation-report.md",
+        "harness-trace.json",
+        "agent-runs/council-elders-manifest.json",
+        "agent-runs/codex-host-critic-request.json",
+        "agent-runs/codex-host-critic-request.md"
+      ],
+      "validators": ["council_review_complete", "critic_questions_present", "blocker_questions_resolved", "app_prd_critic_coverage"],
+      "validatorBindings": ["binding:council-review"],
+      "producedBy": "plan:council-course-correction",
+      "requiredEvidenceTags": ["source-availability", "runtime-constraint", "capability-hint"],
+      "humanReviewRequired": false
+    }
+  ],
+  "workerBindings": [
+    {
+      "id": "worker:runtime-planning",
+      "contractId": "contract:workflow-runtime-planning",
+      "group": "runtime-planning",
+      "adapter": "local:module",
+      "module": "dist/runtime/worker-executors.js",
+      "exportName": "runWorkflowRuntimeWorker",
+      "agentIds": ["persistence-architect", "flow-runtime-manager"],
+      "capabilityIds": ["agent:persistence-architect", "agent:flow-runtime-manager"],
+      "executionModel": "parallel-promise-all",
+      "required": true,
+      "references": ["https://github.com/garrytan/gbrain", "https://github.com/garrytan/gstack"]
+    },
+    {
+      "id": "worker:council-elders",
+      "contractId": "contract:workflow-council-elders",
+      "group": "council-elders",
+      "adapter": "local:module",
+      "module": "dist/runtime/worker-executors.js",
+      "exportName": "runWorkflowRuntimeWorker",
+      "agentIds": ["council-gstack-critic", "council-gbrain-memory", "council-verifier"],
+      "capabilityIds": ["agent:council-gstack-critic", "agent:council-gbrain-memory", "agent:council-verifier"],
+      "executionModel": "parallel-promise-all",
+      "required": true,
+      "references": ["https://github.com/garrytan/gstack", "https://github.com/garrytan/gbrain"]
+    },
+    {
+      "id": "worker:course-correction",
+      "contractId": "contract:workflow-course-correction",
+      "group": "course-correction",
+      "adapter": "local:module",
+      "module": "dist/runtime/worker-executors.js",
+      "exportName": "runWorkflowRuntimeWorker",
+      "agentIds": ["council-course-corrector"],
+      "capabilityIds": ["agent:council-course-corrector"],
+      "executionModel": "single-after-council-review",
+      "required": true,
+      "references": ["https://github.com/garrytan/gstack", "https://github.com/garrytan/gbrain"]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "analyze:persistence",
+      "kind": "analyze",
+      "title": "Plan persistence and memory write-back",
+      "capabilityId": "agent:persistence-architect",
+      "agentId": "persistence-architect",
+      "inputs": ["$sources"],
+      "outputs": [
+        { "id": "persistence-plan", "kind": "report", "required": true },
+        { "id": "workflow-runtime-state", "kind": "artifact", "required": true }
+      ],
+      "evidenceTags": ["source-availability", "runtime-constraint", "capability-hint"]
+    },
+    {
+      "id": "analyze:flow-runtime",
+      "kind": "analyze",
+      "title": "Plan flow runtime and run management",
+      "capabilityId": "agent:flow-runtime-manager",
+      "agentId": "flow-runtime-manager",
+      "inputs": ["$sources"],
+      "outputs": [{ "id": "flow-runtime-plan", "kind": "report", "required": true }],
+      "evidenceTags": ["source-availability", "runtime-constraint", "capability-hint"]
+    },
+    {
+      "id": "validate:run-state",
+      "kind": "validate",
+      "title": "Validate durable run state",
+      "capabilityId": "validator:run-state",
+      "validatorId": "validator:run-state",
+      "inputs": [{ "id": "workflow-runtime-state", "kind": "artifact", "ref": "workflow-runtime-state" }],
+      "outputs": [{ "id": "run-state-result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["source-availability", "runtime-constraint", "capability-hint"]
+    },
+    {
+      "id": "analyze:council-gstack",
+      "kind": "analyze",
+      "title": "GStack process elder review",
+      "capabilityId": "agent:council-gstack-critic",
+      "agentId": "council-gstack-critic",
+      "inputs": [
+        { "id": "flow-runtime-plan", "kind": "artifact", "ref": "flow-runtime-plan" },
+        "$selectedArtifacts"
+      ],
+      "outputs": [
+        { "id": "gstack-process-review", "kind": "report", "required": true },
+        { "id": "gstack-critic-review", "kind": "report", "required": true }
+      ],
+      "evidenceTags": ["source-availability", "runtime-constraint", "capability-hint"]
+    },
+    {
+      "id": "analyze:council-gbrain",
+      "kind": "analyze",
+      "title": "GBrain memory elder review",
+      "capabilityId": "agent:council-gbrain-memory",
+      "agentId": "council-gbrain-memory",
+      "inputs": [
+        { "id": "persistence-plan", "kind": "artifact", "ref": "persistence-plan" },
+        "$selectedArtifacts"
+      ],
+      "outputs": [
+        { "id": "gbrain-memory-review", "kind": "report", "required": true },
+        { "id": "gbrain-critic-review", "kind": "report", "required": true }
+      ],
+      "evidenceTags": ["source-availability", "runtime-constraint", "capability-hint"]
+    },
+    {
+      "id": "analyze:council-verifier",
+      "kind": "analyze",
+      "title": "Verifier elder review",
+      "capabilityId": "agent:council-verifier",
+      "agentId": "council-verifier",
+      "inputs": ["$validatorBindings"],
+      "outputs": [
+        { "id": "verifier-elder-review", "kind": "report", "required": true },
+        { "id": "verifier-critic-review", "kind": "report", "required": true }
+      ],
+      "evidenceTags": ["source-availability", "runtime-constraint", "capability-hint"]
+    },
+    {
+      "id": "plan:council-course-correction",
+      "kind": "plan",
+      "title": "Synthesize council course corrections",
+      "capabilityId": "agent:council-course-corrector",
+      "agentId": "council-course-corrector",
+      "inputs": [
+        { "id": "gstack-process-review", "kind": "artifact", "ref": "gstack-process-review" },
+        { "id": "gbrain-memory-review", "kind": "artifact", "ref": "gbrain-memory-review" },
+        { "id": "verifier-elder-review", "kind": "artifact", "ref": "verifier-elder-review" }
+      ],
+      "outputs": [{ "id": "council-review", "kind": "artifact", "required": true }],
+      "evidenceTags": ["source-availability", "runtime-constraint", "capability-hint"]
+    },
+    {
+      "id": "validate:council-review",
+      "kind": "validate",
+      "title": "Validate council review completion",
+      "capabilityId": "validator:council-review",
+      "validatorId": "validator:council-review",
+      "inputs": [{ "id": "council-review", "kind": "artifact", "ref": "council-review" }],
+      "outputs": [{ "id": "council-review-result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["source-availability", "runtime-constraint", "capability-hint"]
+    }
+  ],
+  "edges": [
+    { "from": "validate:source-availability", "to": "analyze:persistence", "reason": "Persistence planning follows verified source availability." },
+    { "from": "validate:source-availability", "to": "analyze:flow-runtime", "reason": "Flow runtime planning follows verified source availability." },
+    { "from": "analyze:persistence", "to": "validate:run-state", "reason": "Run-state validation consumes persistence planning." },
+    { "from": "analyze:flow-runtime", "to": "validate:run-state", "reason": "Run-state validation consumes flow-runtime planning." },
+    { "from": "$terminalValidators", "to": "analyze:council-gstack", "reason": "The GStack elder reviews process after validators finish." },
+    { "from": "$terminalValidators", "to": "analyze:council-gbrain", "reason": "The GBrain elder reviews persistence and memory after validators finish." },
+    { "from": "$terminalValidators", "to": "analyze:council-verifier", "reason": "The verifier elder reviews validator outcomes." },
+    { "from": "analyze:flow-runtime", "to": "analyze:council-gstack", "reason": "Process review consumes flow runtime planning." },
+    { "from": "analyze:persistence", "to": "analyze:council-gbrain", "reason": "Memory review consumes persistence planning." },
+    { "from": "analyze:council-gstack", "to": "plan:council-course-correction", "reason": "Course correction synthesizes GStack process findings." },
+    { "from": "analyze:council-gbrain", "to": "plan:council-course-correction", "reason": "Course correction synthesizes GBrain memory findings." },
+    { "from": "analyze:council-verifier", "to": "plan:council-course-correction", "reason": "Course correction synthesizes verifier findings." },
+    { "from": "plan:council-course-correction", "to": "validate:council-review", "reason": "Council output must be validated before finalization." }
+  ],
+  "validatorBindings": [
+    {
+      "id": "binding:run-state",
+      "validatorId": "validator:run-state",
+      "artifactId": "workflow-runtime-state",
+      "nodeId": "validate:run-state",
+      "required": true,
+      "evidenceTags": ["source-availability", "runtime-constraint", "capability-hint"]
+    },
+    {
+      "id": "binding:council-review",
+      "validatorId": "validator:council-review",
+      "artifactId": "council-review",
+      "nodeId": "validate:council-review",
+      "required": true,
+      "evidenceTags": ["source-availability", "runtime-constraint", "capability-hint"]
+    }
+  ],
+  "terminalValidators": ["validate:run-state", "validate:council-review"]
+}

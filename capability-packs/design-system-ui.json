@@ -1,0 +1,209 @@
+{
+  "id": "design-system-ui",
+  "name": "Design System UI",
+  "description": "Capability pack for component inventory, token analysis, design-system conformance, and UI review artifacts.",
+  "required": false,
+  "match": {
+    "anyTags": ["design-system", "component", "token"],
+    "anyTerms": ["design-system-ui", "design system", "storybook", "figma", "component", "token", "approved components", "raw color"]
+  },
+  "route": {
+    "archetype": "system-harness",
+    "systemTypes": ["design-system"],
+    "requiredAgents": [
+      "source-auditor",
+      "component-inventory",
+      "token-agent",
+      "ux-flow-agent",
+      "frontend-builder",
+      "storybook-agent",
+      "accessibility-agent",
+      "visual-qa",
+      "repair-agent",
+      "finalizer"
+    ],
+    "requiredValidators": ["component_inventory", "token_usage_detected", "raw_color_detection", "valid_import_paths"],
+    "defaultMode": "standard"
+  },
+  "artifactIds": ["design-system-report"],
+  "capabilityIds": [
+    "profiler:design-inventory",
+    "agent:component-inventory",
+    "agent:token-agent",
+    "artifact-generator:design-system-report",
+    "validator:design-component-inventory",
+    "validator:design-token-usage",
+    "validator:design-raw-color",
+    "validator:design-import-paths"
+  ],
+  "artifacts": [
+    {
+      "id": "design-system-report",
+      "type": "markdown-doc",
+      "requiredFiles": ["component-inventory.json", "design-system-conformance.md", "validation-report.md", "harness-trace.json"],
+      "validators": ["component_inventory", "token_usage_detected", "raw_color_detection", "valid_import_paths"],
+      "validatorBindings": ["binding:design-components", "binding:design-tokens", "binding:design-raw-color", "binding:design-imports"],
+      "producedBy": "generate:design-report",
+      "requiredEvidenceTags": ["design-system", "component", "token"],
+      "humanReviewRequired": false
+    }
+  ],
+  "executors": [
+    {
+      "id": "exec:design-system-report",
+      "kind": "artifact-generator",
+      "capabilityIds": ["artifact-generator:design-system-report"],
+      "adapter": "local:module",
+      "module": "dist/runtime/artifact-executors.js",
+      "exportName": "generateDesignSystemArtifacts",
+      "required": true,
+      "produces": ["component-inventory.json", "design-system-conformance.md"]
+    },
+    {
+      "id": "exec:design-system-validators",
+      "kind": "validator",
+      "capabilityIds": [
+        "validator:design-component-inventory",
+        "validator:design-token-usage",
+        "validator:design-raw-color",
+        "validator:design-import-paths"
+      ],
+      "adapter": "local:module",
+      "module": "dist/runtime/validator-executors.js",
+      "exportName": "runDesignSystemValidatorsExecutor",
+      "required": true,
+      "validatorIds": ["component_inventory", "token_usage_detected", "raw_color_detection", "valid_import_paths"]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "profile:design-inventory",
+      "kind": "profile",
+      "title": "Profile design-system inventory",
+      "capabilityId": "profiler:design-inventory",
+      "inputs": ["$sources"],
+      "outputs": [{ "id": "design-inventory", "kind": "fact", "required": true }],
+      "evidenceTags": ["design-system", "component", "token"]
+    },
+    {
+      "id": "analyze:components",
+      "kind": "analyze",
+      "title": "Analyze approved components",
+      "capabilityId": "agent:component-inventory",
+      "agentId": "component-inventory",
+      "inputs": [{ "id": "design-inventory", "kind": "fact", "ref": "design-inventory" }],
+      "outputs": [{ "id": "component-analysis", "kind": "report", "required": true }],
+      "evidenceTags": ["design-system", "component"]
+    },
+    {
+      "id": "analyze:tokens",
+      "kind": "analyze",
+      "title": "Analyze design tokens",
+      "capabilityId": "agent:token-agent",
+      "agentId": "token-agent",
+      "inputs": [{ "id": "design-inventory", "kind": "fact", "ref": "design-inventory" }],
+      "outputs": [{ "id": "token-analysis", "kind": "report", "required": true }],
+      "evidenceTags": ["design-system", "token"]
+    },
+    {
+      "id": "generate:design-report",
+      "kind": "generate",
+      "title": "Generate design-system report",
+      "capabilityId": "artifact-generator:design-system-report",
+      "agentId": "implementation-agent",
+      "inputs": [
+        { "id": "component-analysis", "kind": "artifact", "ref": "component-analysis" },
+        { "id": "token-analysis", "kind": "artifact", "ref": "token-analysis" }
+      ],
+      "outputs": [{ "id": "design-system-report", "kind": "artifact", "required": true }],
+      "evidenceTags": ["design-system", "component", "token"]
+    },
+    {
+      "id": "validate:design-components",
+      "kind": "validate",
+      "title": "Validate component inventory",
+      "capabilityId": "validator:design-component-inventory",
+      "validatorId": "validator:design-component-inventory",
+      "inputs": [{ "id": "design-system-report", "kind": "artifact", "ref": "design-system-report" }],
+      "outputs": [{ "id": "validate:design-components:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["design-system", "component"]
+    },
+    {
+      "id": "validate:design-tokens",
+      "kind": "validate",
+      "title": "Validate token usage",
+      "capabilityId": "validator:design-token-usage",
+      "validatorId": "validator:design-token-usage",
+      "inputs": [{ "id": "design-system-report", "kind": "artifact", "ref": "design-system-report" }],
+      "outputs": [{ "id": "validate:design-tokens:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["design-system", "token"]
+    },
+    {
+      "id": "validate:design-raw-color",
+      "kind": "validate",
+      "title": "Validate raw color detection",
+      "capabilityId": "validator:design-raw-color",
+      "validatorId": "validator:design-raw-color",
+      "inputs": [{ "id": "design-system-report", "kind": "artifact", "ref": "design-system-report" }],
+      "outputs": [{ "id": "validate:design-raw-color:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["design-system", "token"]
+    },
+    {
+      "id": "validate:design-imports",
+      "kind": "validate",
+      "title": "Validate import paths",
+      "capabilityId": "validator:design-import-paths",
+      "validatorId": "validator:design-import-paths",
+      "inputs": [{ "id": "design-system-report", "kind": "artifact", "ref": "design-system-report" }],
+      "outputs": [{ "id": "validate:design-imports:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["design-system", "component"]
+    }
+  ],
+  "edges": [
+    { "from": "profile:source-availability", "to": "profile:design-inventory", "reason": "Design inventory requires available sources." },
+    { "from": "profile:design-inventory", "to": "analyze:components", "reason": "Component analysis consumes design inventory." },
+    { "from": "profile:design-inventory", "to": "analyze:tokens", "reason": "Token analysis consumes design inventory." },
+    { "from": "analyze:components", "to": "generate:design-report", "reason": "Design report consumes component analysis." },
+    { "from": "analyze:tokens", "to": "generate:design-report", "reason": "Design report consumes token analysis." },
+    { "from": "$generationPrerequisite", "to": "generate:design-report", "reason": "Generation is gated by the explicit reasoning/validation strategy." },
+    { "from": "generate:design-report", "to": "validate:design-components", "reason": "Validate generated component inventory." },
+    { "from": "generate:design-report", "to": "validate:design-tokens", "reason": "Validate token signals." },
+    { "from": "generate:design-report", "to": "validate:design-raw-color", "reason": "Validate raw color signal." },
+    { "from": "generate:design-report", "to": "validate:design-imports", "reason": "Validate import path signal." }
+  ],
+  "validatorBindings": [
+    {
+      "id": "binding:design-components",
+      "validatorId": "validator:design-component-inventory",
+      "artifactId": "design-system-report",
+      "nodeId": "validate:design-components",
+      "required": true,
+      "evidenceTags": ["design-system", "component"]
+    },
+    {
+      "id": "binding:design-tokens",
+      "validatorId": "validator:design-token-usage",
+      "artifactId": "design-system-report",
+      "nodeId": "validate:design-tokens",
+      "required": true,
+      "evidenceTags": ["design-system", "token"]
+    },
+    {
+      "id": "binding:design-raw-color",
+      "validatorId": "validator:design-raw-color",
+      "artifactId": "design-system-report",
+      "nodeId": "validate:design-raw-color",
+      "required": true,
+      "evidenceTags": ["design-system", "token"]
+    },
+    {
+      "id": "binding:design-imports",
+      "validatorId": "validator:design-import-paths",
+      "artifactId": "design-system-report",
+      "nodeId": "validate:design-imports",
+      "required": true,
+      "evidenceTags": ["design-system", "component"]
+    }
+  ],
+  "terminalValidators": ["validate:design-components", "validate:design-tokens", "validate:design-raw-color", "validate:design-imports"]
+}

@@ -1,0 +1,32 @@
+{
+  "name": "codex-harness-forge",
+  "version": "0.1.0",
+  "description": "Compile Codex skills, source-of-truth assets, and task intent into executable, eval-gated agent harnesses.",
+  "type": "module",
+  "bin": {
+    "harness-forge": "./bin/harness-forge.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "harnesses",
+    "capability-packs",
+    "worker-contracts",
+    "schemas",
+    "SKILL.md",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test tests/*.test.js",
+    "eval:app-workflows": "npm run build && node scripts/evaluate-app-workflows.mjs",
+    "clean": "rm -rf dist output .harness/traces/*.json .harness/profiles/*.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

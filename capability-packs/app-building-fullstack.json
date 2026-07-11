@@ -1,0 +1,342 @@
+{
+  "id": "app-building-fullstack",
+  "name": "App Building Full Stack",
+  "description": "Capability pack for PRD-grounded app workflows covering product flow, UI, API, persistence, tests, acceptance, and deployment readiness.",
+  "required": false,
+  "match": {
+    "anyTags": ["app-building", "api", "persistence", "schema", "tests", "deployment", "product-acceptance"],
+    "anyTerms": ["full-stack", "api route", "api routes", "persistence", "database", "schema", "migration", "prd", "deployable architecture", "backend", "frontend tests", "end-to-end"],
+    "sourceExtensions": []
+  },
+  "route": {
+    "archetype": "feature-harness",
+    "systemTypes": ["codebase", "api-system", "data-system", "release-system"],
+    "requiredAgents": [
+      "source-auditor",
+      "app-product-analyst",
+      "api-architect",
+      "persistence-designer",
+      "test-planner",
+      "implementation-agent",
+      "accessibility-agent",
+      "repair-agent",
+      "finalizer"
+    ],
+    "requiredValidators": [
+      "app_requirements_extracted",
+      "app_api_contract_present",
+      "app_persistence_plan_present",
+      "app_source_tree_present",
+      "app_test_plan_full_pipeline",
+      "app_acceptance_coverage"
+    ],
+    "defaultMode": "standard"
+  },
+  "artifactIds": ["app-blueprint"],
+  "capabilityIds": [
+    "agent:app-product-analyst",
+    "agent:api-architect",
+    "agent:persistence-designer",
+    "agent:test-planner",
+    "artifact-generator:app-blueprint",
+    "validator:app-requirements",
+    "validator:app-api-contract",
+    "validator:app-persistence-plan",
+    "validator:app-source-tree",
+    "validator:app-test-plan",
+    "validator:app-acceptance-plan"
+  ],
+  "artifacts": [
+    {
+      "id": "app-ui-flow",
+      "type": "react-component",
+      "requiredFiles": ["app-blueprint.json", "ui-flow.md", "validation-report.md", "harness-trace.json"],
+      "validators": ["app_requirements_extracted"],
+      "validatorBindings": ["binding:app-requirements"],
+      "producedBy": "generate:app-blueprint",
+      "requiredEvidenceTags": ["app-building", "ui-flow", "product-acceptance"],
+      "humanReviewRequired": false
+    },
+    {
+      "id": "app-api-contract",
+      "type": "api-client",
+      "requiredFiles": ["api-contract.json", "validation-report.md", "harness-trace.json"],
+      "validators": ["app_api_contract_present"],
+      "validatorBindings": ["binding:app-api-contract"],
+      "producedBy": "generate:app-blueprint",
+      "requiredEvidenceTags": ["app-building", "api"],
+      "humanReviewRequired": false
+    },
+    {
+      "id": "app-persistence-plan",
+      "type": "migration-patch",
+      "requiredFiles": ["persistence-plan.md", "validation-report.md", "harness-trace.json"],
+      "validators": ["app_persistence_plan_present"],
+      "validatorBindings": ["binding:app-persistence-plan"],
+      "producedBy": "generate:app-blueprint",
+      "requiredEvidenceTags": ["app-building", "persistence", "schema"],
+      "humanReviewRequired": false
+    },
+    {
+      "id": "app-source-tree",
+      "type": "source-tree",
+      "requiredFiles": ["app-source/package.json", "app-source/src/app.js", "app-source/src/api.js", "app-source/src/model.js", "app-source/tests/app.test.js", "validation-report.md", "harness-trace.json"],
+      "validators": ["app_source_tree_present"],
+      "validatorBindings": ["binding:app-source-tree"],
+      "producedBy": "generate:app-blueprint",
+      "requiredEvidenceTags": ["app-building", "tests", "verification"],
+      "humanReviewRequired": false
+    },
+    {
+      "id": "app-test-plan",
+      "type": "test-file",
+      "requiredFiles": ["test-plan.md", "validation-report.md", "harness-trace.json"],
+      "validators": ["app_test_plan_full_pipeline"],
+      "validatorBindings": ["binding:app-test-plan"],
+      "producedBy": "generate:app-blueprint",
+      "requiredEvidenceTags": ["app-building", "tests", "verification"],
+      "humanReviewRequired": false
+    },
+    {
+      "id": "app-acceptance-plan",
+      "type": "release-report",
+      "requiredFiles": ["app-acceptance.md", "validation-report.md", "harness-trace.json"],
+      "validators": ["app_acceptance_coverage"],
+      "validatorBindings": ["binding:app-acceptance-plan"],
+      "producedBy": "generate:app-blueprint",
+      "requiredEvidenceTags": ["app-building", "deployment", "product-acceptance"],
+      "humanReviewRequired": false
+    }
+  ],
+  "executors": [
+    {
+      "id": "exec:app-blueprint",
+      "kind": "artifact-generator",
+      "capabilityIds": ["artifact-generator:app-blueprint"],
+      "adapter": "local:module",
+      "module": "dist/runtime/artifact-executors.js",
+      "exportName": "generateAppBuildingArtifacts",
+      "required": true,
+      "produces": ["app-blueprint.json", "ui-flow.md", "api-contract.json", "persistence-plan.md", "app-source/package.json", "app-source/src/app.js", "app-source/src/api.js", "app-source/src/model.js", "app-source/tests/app.test.js", "test-plan.md", "app-acceptance.md"]
+    },
+    {
+      "id": "exec:app-building-validators",
+      "kind": "validator",
+      "capabilityIds": [
+        "validator:app-requirements",
+        "validator:app-api-contract",
+        "validator:app-persistence-plan",
+        "validator:app-source-tree",
+        "validator:app-test-plan",
+        "validator:app-acceptance-plan"
+      ],
+      "adapter": "local:module",
+      "module": "dist/runtime/validator-executors.js",
+      "exportName": "runAppBuildingValidatorsExecutor",
+      "required": true,
+      "validatorIds": [
+        "app_requirements_extracted",
+        "app_api_contract_present",
+        "app_persistence_plan_present",
+        "app_source_tree_present",
+        "app_test_plan_full_pipeline",
+        "app_acceptance_coverage"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "analyze:app-product",
+      "kind": "analyze",
+      "title": "Extract app product flows and acceptance criteria",
+      "capabilityId": "agent:app-product-analyst",
+      "agentId": "app-product-analyst",
+      "inputs": ["$sources"],
+      "outputs": [{ "id": "app-product-analysis", "kind": "report", "required": true }],
+      "evidenceTags": ["app-building", "ui-flow", "product-acceptance"]
+    },
+    {
+      "id": "analyze:app-api",
+      "kind": "analyze",
+      "title": "Derive API route contract",
+      "capabilityId": "agent:api-architect",
+      "agentId": "api-architect",
+      "inputs": ["$sources", { "id": "app-product-analysis", "kind": "artifact", "ref": "app-product-analysis" }],
+      "outputs": [{ "id": "app-api-analysis", "kind": "report", "required": true }],
+      "evidenceTags": ["app-building", "api"]
+    },
+    {
+      "id": "analyze:app-persistence",
+      "kind": "analyze",
+      "title": "Derive persistence and schema plan",
+      "capabilityId": "agent:persistence-designer",
+      "agentId": "persistence-designer",
+      "inputs": ["$sources", { "id": "app-api-analysis", "kind": "artifact", "ref": "app-api-analysis" }],
+      "outputs": [{ "id": "app-persistence-analysis", "kind": "report", "required": true }],
+      "evidenceTags": ["app-building", "persistence", "schema"]
+    },
+    {
+      "id": "plan:app-tests",
+      "kind": "plan",
+      "title": "Plan full-pipeline app verification",
+      "capabilityId": "agent:test-planner",
+      "agentId": "test-planner",
+      "inputs": [
+        { "id": "app-product-analysis", "kind": "artifact", "ref": "app-product-analysis" },
+        { "id": "app-api-analysis", "kind": "artifact", "ref": "app-api-analysis" },
+        { "id": "app-persistence-analysis", "kind": "artifact", "ref": "app-persistence-analysis" }
+      ],
+      "outputs": [{ "id": "app-test-analysis", "kind": "report", "required": true }],
+      "evidenceTags": ["app-building", "tests", "verification"]
+    },
+    {
+      "id": "generate:app-blueprint",
+      "kind": "generate",
+      "title": "Generate app blueprint artifacts",
+      "capabilityId": "artifact-generator:app-blueprint",
+      "agentId": "implementation-agent",
+      "inputs": [
+        { "id": "app-product-analysis", "kind": "artifact", "ref": "app-product-analysis" },
+        { "id": "app-api-analysis", "kind": "artifact", "ref": "app-api-analysis" },
+        { "id": "app-persistence-analysis", "kind": "artifact", "ref": "app-persistence-analysis" },
+        { "id": "app-test-analysis", "kind": "artifact", "ref": "app-test-analysis" }
+      ],
+      "outputs": [
+        { "id": "app-ui-flow", "kind": "artifact", "required": true },
+        { "id": "app-api-contract", "kind": "artifact", "required": true },
+        { "id": "app-persistence-plan", "kind": "artifact", "required": true },
+        { "id": "app-source-tree", "kind": "artifact", "required": true },
+        { "id": "app-test-plan", "kind": "artifact", "required": true },
+        { "id": "app-acceptance-plan", "kind": "artifact", "required": true }
+      ],
+      "evidenceTags": ["app-building", "api", "persistence", "tests", "product-acceptance"]
+    },
+    {
+      "id": "validate:app-requirements",
+      "kind": "validate",
+      "title": "Validate app requirements extraction",
+      "capabilityId": "validator:app-requirements",
+      "validatorId": "validator:app-requirements",
+      "inputs": [{ "id": "app-ui-flow", "kind": "artifact", "ref": "app-ui-flow" }],
+      "outputs": [{ "id": "validate:app-requirements:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["app-building", "ui-flow", "product-acceptance"]
+    },
+    {
+      "id": "validate:app-api",
+      "kind": "validate",
+      "title": "Validate app API contract",
+      "capabilityId": "validator:app-api-contract",
+      "validatorId": "validator:app-api-contract",
+      "inputs": [{ "id": "app-api-contract", "kind": "artifact", "ref": "app-api-contract" }],
+      "outputs": [{ "id": "validate:app-api:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["app-building", "api"]
+    },
+    {
+      "id": "validate:app-persistence",
+      "kind": "validate",
+      "title": "Validate app persistence plan",
+      "capabilityId": "validator:app-persistence-plan",
+      "validatorId": "validator:app-persistence-plan",
+      "inputs": [{ "id": "app-persistence-plan", "kind": "artifact", "ref": "app-persistence-plan" }],
+      "outputs": [{ "id": "validate:app-persistence:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["app-building", "persistence", "schema"]
+    },
+    {
+      "id": "validate:app-tests",
+      "kind": "validate",
+      "title": "Validate full-pipeline app test plan",
+      "capabilityId": "validator:app-test-plan",
+      "validatorId": "validator:app-test-plan",
+      "inputs": [{ "id": "app-test-plan", "kind": "artifact", "ref": "app-test-plan" }],
+      "outputs": [{ "id": "validate:app-tests:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["app-building", "tests", "verification"]
+    },
+    {
+      "id": "validate:app-source-tree",
+      "kind": "validate",
+      "title": "Validate generated app source tree",
+      "capabilityId": "validator:app-source-tree",
+      "validatorId": "validator:app-source-tree",
+      "inputs": [{ "id": "app-source-tree", "kind": "artifact", "ref": "app-source-tree" }],
+      "outputs": [{ "id": "validate:app-source-tree:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["app-building", "tests", "verification"]
+    },
+    {
+      "id": "validate:app-acceptance",
+      "kind": "validate",
+      "title": "Validate app acceptance and deployment plan",
+      "capabilityId": "validator:app-acceptance-plan",
+      "validatorId": "validator:app-acceptance-plan",
+      "inputs": [{ "id": "app-acceptance-plan", "kind": "artifact", "ref": "app-acceptance-plan" }],
+      "outputs": [{ "id": "validate:app-acceptance:result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["app-building", "deployment", "product-acceptance"]
+    }
+  ],
+  "edges": [
+    { "from": "profile:source-availability", "to": "analyze:app-product", "reason": "Product analysis requires available PRD/source evidence." },
+    { "from": "analyze:app-product", "to": "analyze:app-api", "reason": "API design follows product flow extraction." },
+    { "from": "analyze:app-api", "to": "analyze:app-persistence", "reason": "Persistence design follows API contract boundaries." },
+    { "from": "analyze:app-product", "to": "plan:app-tests", "reason": "Test planning consumes product flows." },
+    { "from": "analyze:app-api", "to": "plan:app-tests", "reason": "Test planning consumes API routes." },
+    { "from": "analyze:app-persistence", "to": "plan:app-tests", "reason": "Test planning consumes persistence schema." },
+    { "from": "$generationPrerequisite", "to": "generate:app-blueprint", "reason": "Generation is gated by explicit reasoning/validation strategy." },
+    { "from": "plan:app-tests", "to": "generate:app-blueprint", "reason": "Blueprint generation consumes the full-pipeline test plan." },
+    { "from": "generate:app-blueprint", "to": "validate:app-requirements", "reason": "Validate generated UI/product flow." },
+    { "from": "generate:app-blueprint", "to": "validate:app-api", "reason": "Validate generated API contract." },
+    { "from": "generate:app-blueprint", "to": "validate:app-persistence", "reason": "Validate generated persistence plan." },
+    { "from": "generate:app-blueprint", "to": "validate:app-source-tree", "reason": "Validate generated source tree and smoke test surface." },
+    { "from": "generate:app-blueprint", "to": "validate:app-tests", "reason": "Validate generated test plan." },
+    { "from": "generate:app-blueprint", "to": "validate:app-acceptance", "reason": "Validate acceptance and deployment plan." }
+  ],
+  "validatorBindings": [
+    {
+      "id": "binding:app-requirements",
+      "validatorId": "validator:app-requirements",
+      "artifactId": "app-ui-flow",
+      "nodeId": "validate:app-requirements",
+      "required": true,
+      "evidenceTags": ["app-building", "ui-flow", "product-acceptance"]
+    },
+    {
+      "id": "binding:app-api-contract",
+      "validatorId": "validator:app-api-contract",
+      "artifactId": "app-api-contract",
+      "nodeId": "validate:app-api",
+      "required": true,
+      "evidenceTags": ["app-building", "api"]
+    },
+    {
+      "id": "binding:app-persistence-plan",
+      "validatorId": "validator:app-persistence-plan",
+      "artifactId": "app-persistence-plan",
+      "nodeId": "validate:app-persistence",
+      "required": true,
+      "evidenceTags": ["app-building", "persistence", "schema"]
+    },
+    {
+      "id": "binding:app-test-plan",
+      "validatorId": "validator:app-test-plan",
+      "artifactId": "app-test-plan",
+      "nodeId": "validate:app-tests",
+      "required": true,
+      "evidenceTags": ["app-building", "tests", "verification"]
+    },
+    {
+      "id": "binding:app-source-tree",
+      "validatorId": "validator:app-source-tree",
+      "artifactId": "app-source-tree",
+      "nodeId": "validate:app-source-tree",
+      "required": true,
+      "evidenceTags": ["app-building", "tests", "verification"]
+    },
+    {
+      "id": "binding:app-acceptance-plan",
+      "validatorId": "validator:app-acceptance-plan",
+      "artifactId": "app-acceptance-plan",
+      "nodeId": "validate:app-acceptance",
+      "required": true,
+      "evidenceTags": ["app-building", "deployment", "product-acceptance"]
+    }
+  ],
+  "terminalValidators": ["validate:app-requirements", "validate:app-api", "validate:app-persistence", "validate:app-source-tree", "validate:app-tests", "validate:app-acceptance"]
+}

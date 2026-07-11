@@ -1,0 +1,105 @@
+{
+  "id": "generic-report",
+  "name": "Generic Report",
+  "description": "Fallback capability pack for source-grounded workflow reports when no domain artifact pack matches.",
+  "required": false,
+  "match": {
+    "anyTags": [],
+    "anyTerms": ["generic-report", "explain", "trace", "architecture", "entrypoint", "dependencies"],
+    "sourceExtensions": []
+  },
+  "route": {
+    "archetype": "explore-harness",
+    "systemTypes": ["codebase"],
+    "requiredAgents": ["source-auditor", "implementation-agent", "finalizer"],
+    "requiredValidators": ["trace_complete"]
+  },
+  "artifactIds": ["final-report"],
+  "capabilityIds": [
+    "agent:implementation-agent",
+    "artifact-generator:final-report",
+    "validator:trace-complete"
+  ],
+  "artifacts": [
+    {
+      "id": "final-report",
+      "type": "markdown-doc",
+      "requiredFiles": ["final-report.md", "validation-report.md", "harness-trace.json"],
+      "validators": ["trace_complete"],
+      "validatorBindings": ["binding:trace-complete"],
+      "producedBy": "generate:final-report",
+      "requiredEvidenceTags": ["source-availability"],
+      "humanReviewRequired": false
+    }
+  ],
+  "executors": [
+    {
+      "id": "exec:final-report",
+      "kind": "artifact-generator",
+      "capabilityIds": ["artifact-generator:final-report"],
+      "adapter": "local:module",
+      "module": "dist/runtime/artifact-executors.js",
+      "exportName": "generateFinalReport",
+      "required": true,
+      "produces": ["final-report.md"]
+    },
+    {
+      "id": "exec:trace-complete",
+      "kind": "validator",
+      "capabilityIds": ["validator:trace-complete"],
+      "adapter": "local:module",
+      "module": "dist/runtime/validator-executors.js",
+      "exportName": "runTraceCompleteValidatorExecutor",
+      "required": true,
+      "validatorIds": ["trace_complete"]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "analyze:implementation",
+      "kind": "analyze",
+      "title": "Analyze implementation request",
+      "capabilityId": "agent:implementation-agent",
+      "agentId": "implementation-agent",
+      "inputs": ["$sources"],
+      "outputs": [{ "id": "implementation-analysis", "kind": "report", "required": true }],
+      "evidenceTags": ["source-availability"]
+    },
+    {
+      "id": "generate:final-report",
+      "kind": "generate",
+      "title": "Generate final workflow report",
+      "capabilityId": "artifact-generator:final-report",
+      "inputs": [{ "id": "implementation-analysis", "kind": "artifact", "ref": "implementation-analysis" }],
+      "outputs": [{ "id": "final-report", "kind": "artifact", "required": true }],
+      "evidenceTags": ["source-availability"]
+    },
+    {
+      "id": "validate:trace-complete",
+      "kind": "validate",
+      "title": "Validate trace completeness",
+      "capabilityId": "validator:trace-complete",
+      "validatorId": "validator:trace-complete",
+      "inputs": [{ "id": "final-report", "kind": "artifact", "ref": "final-report" }],
+      "outputs": [{ "id": "trace-complete-result", "kind": "validator-result", "required": true }],
+      "evidenceTags": ["source-availability"]
+    }
+  ],
+  "edges": [
+    { "from": "profile:source-availability", "to": "analyze:implementation", "reason": "Implementation analysis needs source context." },
+    { "from": "analyze:implementation", "to": "generate:final-report", "reason": "Final report consumes implementation analysis." },
+    { "from": "$generationPrerequisite", "to": "generate:final-report", "reason": "Generation is gated by the explicit reasoning/validation strategy." },
+    { "from": "generate:final-report", "to": "validate:trace-complete", "reason": "Validate generic trace/report output." }
+  ],
+  "validatorBindings": [
+    {
+      "id": "binding:trace-complete",
+      "validatorId": "validator:trace-complete",
+      "artifactId": "final-report",
+      "nodeId": "validate:trace-complete",
+      "required": true,
+      "evidenceTags": ["source-availability"]
+    }
+  ],
+  "terminalValidators": ["validate:trace-complete"]
+}

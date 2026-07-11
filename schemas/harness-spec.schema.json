@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-harness-forge.local/harness-spec.schema.json",
+  "title": "HarnessSpec",
+  "type": "object",
+  "required": ["id", "name", "archetype", "mode", "userIntent", "systemProfiles", "sources", "agents", "graph", "validators", "artifactContracts", "permissions", "checkpoints", "learning", "harnessModel"],
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "archetype": { "type": "string" },
+    "mode": { "type": "string", "enum": ["quick", "standard", "deep", "tournament", "automation"] },
+    "userIntent": { "type": "string" },
+    "systemProfiles": { "type": "array" },
+    "sources": { "type": "array" },
+    "agents": { "type": "array" },
+    "graph": { "type": "array" },
+    "validators": { "type": "array" },
+    "artifactContracts": { "type": "array" },
+    "permissions": { "type": "object" },
+    "checkpoints": { "type": "array" },
+    "learning": { "type": "object" },
+    "harnessModel": { "type": "object" },
+    "compiledPrompt": { "type": "string" }
+  }
+}

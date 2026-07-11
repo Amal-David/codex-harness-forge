@@ -1,0 +1,16 @@
+node_modules/
+dist/
+output/
+.harness/
+.DS_Store
+
+# Local agent and editor state.
+.agents/
+.amazonq/
+.claude/
+.cursor/
+.gemini/
+.opencode/
+AGENTS.md
+CLAUDE.md
+.superplan/

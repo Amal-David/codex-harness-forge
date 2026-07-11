@@ -1,0 +1,194 @@
+{
+  "id": "workflow-runtime-contracts",
+  "name": "Workflow Runtime Worker Contracts",
+  "description": "Stable worker/function contracts for domain planning, Workflows runtime planning, council review, course correction, and finalization.",
+  "contracts": [
+    {
+      "id": "contract:workflow-domain-planning",
+      "workerId": "worker:domain-planning",
+      "functionId": "workflow.domain.plan",
+      "triggerId": "workflow.group.domain-planning",
+      "version": "1.0.0",
+      "stateNamespace": "workflow.domain",
+      "eventTopics": ["workflow.sources.validated", "workflow.domain.planned", "workflow.agent.completed"],
+      "adapterTypes": ["local:module"],
+      "requiredPermissions": ["filesystem-read", "filesystem-write"],
+      "inputSchema": {
+        "type": "object",
+        "required": ["runId", "spec", "request", "group", "node"],
+        "properties": {
+          "runId": { "type": "string" },
+          "group": { "const": "domain-planning" },
+          "node": { "type": "object" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["summary", "findings", "courseCorrections"],
+        "properties": {
+          "summary": { "type": "string" },
+          "findings": { "type": "array" },
+          "courseCorrections": { "type": "array" }
+        }
+      },
+      "replacement": {
+        "compatibilityKey": "workflow.domain.plan@1",
+        "notes": "Any replacement worker must preserve graph-node identity, dependency ordering, and inspectable planning evidence."
+      }
+    },
+    {
+      "id": "contract:workflow-runtime-planning",
+      "workerId": "worker:runtime-planning",
+      "functionId": "workflow.runtime.plan",
+      "triggerId": "workflow.group.runtime-planning",
+      "version": "1.0.0",
+      "stateNamespace": "workflow.runtime",
+      "eventTopics": ["workflow.run.started", "workflow.runtime.planned", "workflow.agent.completed"],
+      "adapterTypes": ["local:module"],
+      "requiredPermissions": ["filesystem-read", "filesystem-write"],
+      "inputSchema": {
+        "type": "object",
+        "required": ["runId", "spec", "request", "group", "node"],
+        "properties": {
+          "runId": { "type": "string" },
+          "group": { "const": "runtime-planning" },
+          "node": { "type": "object" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["summary", "findings", "courseCorrections"],
+        "properties": {
+          "summary": { "type": "string" },
+          "findings": { "type": "array" },
+          "courseCorrections": { "type": "array" }
+        }
+      },
+      "replacement": {
+        "compatibilityKey": "workflow.runtime.plan@1",
+        "notes": "Any replacement worker must preserve the workflow.runtime.plan function contract and output shape."
+      }
+    },
+    {
+      "id": "contract:workflow-council-elders",
+      "workerId": "worker:council-elders",
+      "functionId": "workflow.council.review",
+      "triggerId": "workflow.group.council-elders",
+      "version": "1.0.0",
+      "stateNamespace": "workflow.council",
+      "eventTopics": ["workflow.validators.completed", "workflow.council.reviewed", "workflow.agent.completed"],
+      "adapterTypes": ["local:module", "codex:host"],
+      "requiredPermissions": ["filesystem-read", "filesystem-write"],
+      "inputSchema": {
+        "type": "object",
+        "required": ["runId", "spec", "request", "group", "node", "validations"],
+        "properties": {
+          "runId": { "type": "string" },
+          "group": { "const": "council-elders" },
+          "node": { "type": "object" },
+          "validations": { "type": "array" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["summary", "findings", "courseCorrections", "criticReview"],
+        "properties": {
+          "summary": { "type": "string" },
+          "findings": { "type": "array" },
+          "courseCorrections": { "type": "array" },
+          "criticReview": {
+            "type": "object",
+            "required": ["criticId", "summary", "questions", "missingEvidence", "unsafeAssumptions", "domainRisks", "mustAnswerBeforeFinalize", "confidenceScore"],
+            "properties": {
+              "criticId": { "type": "string" },
+              "summary": { "type": "string" },
+              "questions": { "type": "array" },
+              "missingEvidence": { "type": "array" },
+              "unsafeAssumptions": { "type": "array" },
+              "domainRisks": { "type": "array" },
+              "mustAnswerBeforeFinalize": { "type": "array" },
+              "confidenceScore": { "type": "number" }
+            }
+          }
+        }
+      },
+      "hostAdapter": {
+        "preferred": "codex:host",
+        "fallback": "local:module",
+        "promptArtifact": "agent-runs/codex-host-critic-request.md"
+      },
+      "replacement": {
+        "compatibilityKey": "workflow.council.review@1",
+        "notes": "Any replacement worker must preserve council finding, course-correction, and structured critic question semantics."
+      }
+    },
+    {
+      "id": "contract:workflow-course-correction",
+      "workerId": "worker:course-correction",
+      "functionId": "workflow.council.course_correct",
+      "triggerId": "workflow.group.course-correction",
+      "version": "1.0.0",
+      "stateNamespace": "workflow.council",
+      "eventTopics": ["workflow.council.reviewed", "workflow.course_correction.proposed", "workflow.agent.completed"],
+      "adapterTypes": ["local:module"],
+      "requiredPermissions": ["filesystem-read", "filesystem-write"],
+      "inputSchema": {
+        "type": "object",
+        "required": ["runId", "spec", "request", "group", "node", "review"],
+        "properties": {
+          "runId": { "type": "string" },
+          "group": { "const": "course-correction" },
+          "node": { "type": "object" },
+          "review": { "type": "object" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["summary", "findings", "courseCorrections"],
+        "properties": {
+          "summary": { "type": "string" },
+          "findings": { "type": "array" },
+          "courseCorrections": { "type": "array" }
+        }
+      },
+      "replacement": {
+        "compatibilityKey": "workflow.council.course_correct@1",
+        "notes": "Any replacement worker must consume council output and emit inspectable course corrections."
+      }
+    },
+    {
+      "id": "contract:workflow-finalization",
+      "workerId": "worker:finalization",
+      "functionId": "workflow.run.finalize",
+      "triggerId": "workflow.group.finalization",
+      "version": "1.0.0",
+      "stateNamespace": "workflow.finalization",
+      "eventTopics": ["workflow.validators.completed", "workflow.council.reviewed", "workflow.run.finalized"],
+      "adapterTypes": ["local:module"],
+      "requiredPermissions": ["filesystem-read", "filesystem-write"],
+      "inputSchema": {
+        "type": "object",
+        "required": ["runId", "spec", "request", "group", "node", "validations"],
+        "properties": {
+          "runId": { "type": "string" },
+          "group": { "const": "finalization" },
+          "node": { "type": "object" },
+          "validations": { "type": "array" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["summary", "findings", "courseCorrections"],
+        "properties": {
+          "summary": { "type": "string" },
+          "findings": { "type": "array" },
+          "courseCorrections": { "type": "array" }
+        }
+      },
+      "replacement": {
+        "compatibilityKey": "workflow.run.finalize@1",
+        "notes": "Any replacement worker must run only after required validator and council dependencies complete."
+      }
+    }
+  ]
+}
