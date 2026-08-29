@@ -1,0 +1,42 @@
+name: Yukon matrices secure baseline
+
+on:
+  push:
+    branches:
+      - yukon-matrices-fast-20260829
+    paths:
+      - 'yukon-matrices/**'
+      - '.github/workflows/yukon-matrices-secure-baseline.yml'
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: yukon-matrices-secure-baseline
+  cancel-in-progress: false
+
+jobs:
+  baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: '1'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout isolated orchestration branch
+        uses: actions/checkout@v4
+
+      - name: Install, securely authenticate, clone, set up, and score baseline
+        run: bash yukon-matrices/secure-baseline.sh
+
+      - name: Upload exact baseline evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yukon-matrices-secure-baseline-${{ github.run_id }}
+          path: yukon-matrices/artifacts/secure-baseline
+          if-no-files-found: warn
+          retention-days: 7
