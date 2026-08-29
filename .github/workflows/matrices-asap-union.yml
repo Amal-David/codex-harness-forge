@@ -1,0 +1,157 @@
+name: matrices.fast ASAP union screen
+
+on:
+  push:
+    branches:
+      - matrices-asap-union-20260829
+    paths:
+      - .github/workflows/matrices-asap-union.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose:
+    strategy:
+      fail-fast: false
+      matrix:
+        lane:
+          - p496_then_p495
+          - p495_then_p496
+          - p496_then_p494
+          - p496_p494_p495
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      BASE_SHA: c9ae9848e14c74b41b7c7d9ab9059e7cc75fc634
+      SSI_ALLOW_UNSANDBOXED_WORKER: '1'
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Host and prerequisites
+        shell: bash
+        run: |
+          set -euxo pipefail
+          uname -a
+          nproc
+          free -h
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y git git-lfs gcc g++ build-essential jq curl ca-certificates pkg-config libssl-dev bubblewrap
+          git lfs install
+          rustc --version
+          cargo --version
+
+      - name: Clone exact source and fetch active candidate branches
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/Layr-Labs/ssi-ordering-challenge.git challenge
+          cd challenge
+          git fetch origin "$BASE_SHA"
+          git fetch origin refs/pull/494/head:refs/remotes/origin/pr494
+          git fetch origin refs/pull/495/head:refs/remotes/origin/pr495
+          git fetch origin refs/pull/496/head:refs/remotes/origin/pr496
+          git checkout --detach "$BASE_SHA"
+          git lfs pull
+          test "$(git rev-parse HEAD)" = "$BASE_SHA"
+          git config user.name 'matrices union screen'
+          git config user.email 'matrices-union@invalid.local'
+          git config rerere.enabled true
+          mkdir -p ../evidence
+          git log -1 --format='%H %s' > ../evidence/base.txt
+
+      - name: Compose lane
+        id: compose
+        shell: bash
+        run: |
+          set -o pipefail
+          cd challenge
+          merge_one() {
+            local ref="$1"
+            echo "===== MERGE $ref =====" | tee -a ../evidence/compose.log
+            if git merge --no-ff --no-edit "$ref" >>../evidence/compose.log 2>&1; then
+              return 0
+            fi
+            git status --short | tee -a ../evidence/compose.log
+            git diff --name-only --diff-filter=U | tee ../evidence/conflicts.txt
+            return 1
+          }
+          case '${{ matrix.lane }}' in
+            p496_then_p495)
+              merge_one origin/pr496 && merge_one origin/pr495 ;;
+            p495_then_p496)
+              merge_one origin/pr495 && merge_one origin/pr496 ;;
+            p496_then_p494)
+              merge_one origin/pr496 && merge_one origin/pr494 ;;
+            p496_p494_p495)
+              merge_one origin/pr496 && merge_one origin/pr494 && merge_one origin/pr495 ;;
+            *) exit 2 ;;
+          esac
+          rc=$?
+          git status --short | tee ../evidence/status-after-compose.txt
+          git diff "$BASE_SHA" --stat | tee ../evidence/union.stat
+          git diff "$BASE_SHA" -- src/ordering > ../evidence/union.patch || true
+          git rev-parse HEAD > ../evidence/head.txt
+          if (( rc != 0 )); then
+            echo 'compose_ok=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo 'compose_ok=true' >> "$GITHUB_OUTPUT"
+
+      - name: Verify allowed paths
+        if: steps.compose.outputs.compose_ok == 'true'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd challenge
+          bad="$(git diff --name-only "$BASE_SHA" | grep -v '^src/ordering/' || true)"
+          if [[ -n "$bad" ]]; then
+            printf 'Disallowed changed paths:\n%s\n' "$bad" | tee ../evidence/disallowed-paths.txt
+            exit 1
+          fi
+
+      - name: Prepare and build
+        if: steps.compose.outputs.compose_ok == 'true'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd challenge
+          bash scripts/prepare-build.sh 2>&1 | tee ../evidence/prepare-build.log
+          SSI_ALLOW_UNSANDBOXED_WORKER=1 bash scripts/local-candidate-build.sh 2>&1 | tee ../evidence/candidate-build.log
+          cargo build --release --offline --locked 2>&1 | tee ../evidence/parent-build.log
+
+      - name: Candidate tests
+        if: steps.compose.outputs.compose_ok == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          cd challenge
+          cargo test --release --offline --locked -p ssi-candidate-worker --bin ssi-candidate-worker -- --test-threads=1 2>&1 | tee ../evidence/candidate-tests.log
+          cargo test --release --offline --locked 2>&1 | tee ../evidence/trusted-tests.log
+
+      - name: Exact 300-row in-process score
+        if: steps.compose.outputs.compose_ok == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          cd challenge
+          /usr/bin/time -v cargo test --release --offline --locked -p ssi-candidate-worker -- --ignored --nocapture --test-threads=1 --exact ordering::probe::probe_fleet_h 2>&1 | tee ../evidence/fleet-h.log
+
+      - name: Official-style development run
+        if: steps.compose.outputs.compose_ok == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          cd challenge
+          SSI_ALLOW_UNSANDBOXED_WORKER=1 /usr/bin/time -v cargo run --release --offline --locked -- --note '${{ matrix.lane }}' 2>&1 | tee ../evidence/dev-run.log
+          cp -f score.json results.tsv ../evidence/ 2>/dev/null || true
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrices-asap-union-${{ matrix.lane }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
