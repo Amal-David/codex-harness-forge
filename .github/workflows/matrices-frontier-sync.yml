@@ -1,0 +1,47 @@
+name: matrices frontier sync
+
+on:
+  push:
+    branches:
+      - matrices-vm-sync-20260829-v4
+    paths:
+      - .github/workflows/matrices-frontier-sync.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Resolve and fetch current matrices.fast frontier
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO=https://github.com/Layr-Labs/ssi-ordering-challenge.git
+          SHA="$(git ls-remote "$REPO" refs/heads/main | awk '{print $1}')"
+          test -n "$SHA"
+          echo "$SHA" | tee frontier-sha.txt
+          git init frontier
+          git -C frontier remote add origin "$REPO"
+          git -C frontier fetch --depth=1 origin "$SHA"
+          git -C frontier checkout --detach FETCH_HEAD
+          test "$(git -C frontier rev-parse HEAD)" = "$SHA"
+          mkdir -p snapshot
+          tar -C frontier -czf snapshot/current-ordering.tgz src/ordering
+          cp frontier-sha.txt snapshot/
+          cp frontier/README.md frontier/RULES.md frontier/benchmark.json snapshot/
+          git -C frontier show -s --format='%H%n%aI%n%an%n%s' HEAD > snapshot/frontier-commit.txt
+          sha256sum snapshot/current-ordering.tgz > snapshot/SHA256SUMS
+          find frontier/src/ordering -type f -print0 | sort -z | xargs -0 sha256sum > snapshot/ordering-files.sha256
+
+      - name: Upload exact frontier snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrices-current-frontier
+          path: snapshot/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
