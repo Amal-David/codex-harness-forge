@@ -1,0 +1,51 @@
+name: Yukon matrices frontier-aware hole finalist
+
+on:
+  push:
+    branches: [yukon-matrices-frontier-search-20260829]
+    paths:
+      - '.github/workflows/yukon-matrices-hole-submit.yml'
+      - 'yukon-matrices/apply-hole-and-submit.sh.gz.b64'
+      - 'yukon-matrices/secure-baseline.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: yukon-matrices-frontier-aware-hole-finalist
+  cancel-in-progress: true
+
+jobs:
+  submit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: '1'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secure login, exact Yukon clone, setup, and untouched baseline
+        run: bash yukon-matrices/secure-baseline.sh
+      - name: Decode, validate, and submit the task-neutral finalist
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCRIPT="$RUNNER_TEMP/apply-hole-and-submit.sh"
+          base64 -d yukon-matrices/apply-hole-and-submit.sh.gz.b64 | gzip -dc > "$SCRIPT"
+          chmod 700 "$SCRIPT"
+          bash -n "$SCRIPT"
+          exec bash "$SCRIPT"
+      - name: Upload complete evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yukon-matrices-hole-finalist-${{ github.run_id }}
+          path: |
+            yukon-matrices/artifacts/secure-baseline
+            yukon-matrices/artifacts/hole-submit
+          if-no-files-found: warn
+          retention-days: 14
