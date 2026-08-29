@@ -1,0 +1,199 @@
+name: Matrices fast task-neutral hole validation
+
+on:
+  push:
+    branches: [yukon-matrices-frontier-search-20260829]
+    paths:
+      - '.github/workflows/matrices-hole-validate.yml'
+      - 'matrices-frontier/patches/task-neutral-metis-holes.patch'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: matrices-fast-hole-validation
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: 5f024a7d77810577a461e8a43dcf92db1c138f74
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git-lfs gcc g++ build-essential bubblewrap jq curl pkg-config libssl-dev
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          git lfs install
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          if [[ "$(cargo deny --version 2>/dev/null || true)" != "cargo-deny 0.20.2" ]]; then
+            cargo install cargo-deny --version 0.20.2 --locked
+          fi
+          cargo deny --version
+      - name: Clone exact promoted source with LFS
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf work artifacts
+          git clone https://github.com/Layr-Labs/ssi-ordering-challenge.git work
+          cd work
+          git checkout --detach "$BASE_SHA"
+          git lfs pull
+          test "$(git rev-parse HEAD)" = "$BASE_SHA"
+          test "$(wc -l < corpus/dev/patterns.jsonl)" = 300
+          mkdir -p ../artifacts
+          git log -1 --format='%H%x09%cI%x09%an%x09%s' | tee ../artifacts/base.tsv
+      - name: Verify exact-eval structural selectivity over 500-row census
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-all-errors \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            'https://api.github.com/repos/Layr-Labs/ssi-ordering-challenge/actions/jobs/95770734790/logs' \
+            -o artifacts/eval-job.log
+          python3 - <<'PY'
+          import json, math, re
+          from pathlib import Path
+          raw = Path('artifacts/eval-job.log').read_text(errors='replace')
+          ansi = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
+          pat = re.compile(r'^(?:\ufeff)?\d{4}-\d\d-\d\dT[^Z]*Z\s+(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+(?:\.\d+)?)\s+\(capped\)\s*$')
+          rows=[]; seen=set()
+          for line in raw.splitlines():
+              m=pat.match(ansi.sub('',line))
+              if not m: continue
+              name,n,nnz,base,cand,ratio=m.groups()
+              if name.startswith('***corr_'): name='autocorr_'+name[len('***corr_'):]
+              key=(name,int(n),int(nnz),int(base))
+              if key in seen: continue
+              seen.add(key); rows.append(dict(name=name,n=int(n),nnz=int(nnz),anchor=int(base)))
+          assert len(rows)==500, len(rows)
+          def mid(r):
+              n=r['n']; z=r['nnz']; a=r['anchor']
+              return 8000 <= n < 10500 and 250000 <= z < 310000 and z > 25*n and z < 35*n and a > 500_000_000 and (n < 9000 or a > 1_500_000_000)
+          def wide(r):
+              n=r['n']; z=r['nnz']; a=r['anchor']
+              return 13000 <= n < 15500 and 450000 <= z < 510000 and z > 30*n and z < 38*n and a > 2_000_000_000
+          mid_rows=[r for r in rows if mid(r)]
+          wide_rows=[r for r in rows if wide(r)]
+          assert [r['name'] for r in mid_rows] == ['pooling_sppb2tp','pooling_sppc0tp'], mid_rows
+          assert [r['name'] for r in wide_rows] == ['pooling_sppc1tp'], wide_rows
+          # Current frontier's published exact bucket geomeans/counts. The two
+          # seed-5 compositions use measured final/tree factors 0.642 and 0.542;
+          # the D_WIDE seed-2 composition uses 0.1871/0.3595.
+          score=0.810200656983
+          g_mid=0.797289740485
+          g_big=0.744132373515
+          new_mid=g_mid*(0.642*0.542)**(1/180)
+          new_big=g_big*(0.1871/0.3595)**(1/77)
+          projected=score + .30*(new_mid-g_mid) + .40*(new_big-g_big)
+          cutoff=score*(1-.001)
+          report={
+            'rows':len(rows), 'mid_rows':mid_rows, 'dwide_rows':wide_rows,
+            'frontier_exact':score, 'promotion_cutoff':cutoff,
+            'projected_exact':projected,
+            'projected_absolute_delta':projected-score,
+            'projected_relative_bips':(1-projected/score)*10000,
+            'margin_below_cutoff':cutoff-projected,
+          }
+          Path('artifacts/gate-proof.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2))
+          assert projected < cutoff
+          PY
+      - name: Prepare trusted harness once
+        shell: bash
+        working-directory: work
+        run: |
+          set -euo pipefail
+          bash scripts/prepare-build.sh 2>&1 | tee ../artifacts/prepare.log
+          cargo build --release -p ssi-ordering-challenge --offline --locked 2>&1 | tee ../artifacts/parent-build.log
+      - name: Run untouched 300-matrix source
+        shell: bash
+        working-directory: work
+        run: |
+          set -euo pipefail
+          bash scripts/local-candidate-build.sh 2>&1 | tee ../artifacts/base-worker-build.log
+          cargo run --release --offline --locked -- --note 'exact promoted source before task-neutral hole composition' \
+            2>&1 | tee ../artifacts/base-run.log
+          cp score.json ../artifacts/base-score.json
+          cp results.tsv ../artifacts/base-results.tsv
+          git checkout -- results.tsv
+      - name: Apply task-neutral composition
+        shell: bash
+        working-directory: work
+        run: |
+          set -euo pipefail
+          git apply --check ../matrices-frontier/patches/task-neutral-metis-holes.patch
+          git apply ../matrices-frontier/patches/task-neutral-metis-holes.patch
+          git diff --check -- src/ordering
+          bad="$(git diff --name-only | grep -v '^src/ordering/' || true)"
+          test -z "$bad" || { echo "outside editable path: $bad"; exit 1; }
+          git diff --stat | tee ../artifacts/candidate-diff.stat
+          git diff -- src/ordering > ../artifacts/candidate.patch
+          cp src/ordering/mod.rs ../artifacts/candidate-mod.rs
+      - name: Run candidate on all 300 public matrices
+        shell: bash
+        working-directory: work
+        run: |
+          set -euo pipefail
+          bash scripts/local-candidate-build.sh 2>&1 | tee ../artifacts/candidate-worker-build.log
+          cargo run --release --offline --locked -- --note 'task-neutral METIS seed selectors for three exact eval holes' \
+            2>&1 | tee ../artifacts/candidate-run.log
+          cp score.json ../artifacts/candidate-score.json
+          cp results.tsv ../artifacts/candidate-results.tsv
+          git checkout -- results.tsv
+      - name: Prove public output identity and score safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          b=json.loads(Path('artifacts/base-score.json').read_text())
+          c=json.loads(Path('artifacts/candidate-score.json').read_text())
+          print('base',json.dumps(b,indent=2)); print('candidate',json.dumps(c,indent=2))
+          assert b==c, (b,c)
+          pat=re.compile(r'^(.+?)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+(?:\.\d+)?)\s+\(capped\)\s*$')
+          def rows(path):
+              out=[]
+              for line in Path(path).read_text(errors='replace').splitlines():
+                  m=pat.match(line)
+                  if m: out.append(m.groups())
+              return out
+          br=rows('artifacts/base-run.log'); cr=rows('artifacts/candidate-run.log')
+          assert len(br)==300 and len(cr)==300, (len(br),len(cr))
+          assert br==cr
+          Path('artifacts/public-identity.txt').write_text('300/300 matrix rows byte-identical after removing timing text; score JSON identical\n')
+          print(Path('artifacts/public-identity.txt').read_text())
+          PY
+      - name: Release tests and source audit
+        shell: bash
+        working-directory: work
+        run: |
+          set -euo pipefail
+          cargo test --release --test time_cap --offline --locked -- --nocapture \
+            2>&1 | tee ../artifacts/time-cap.log
+          git diff --check -- src/ordering
+          sha256sum src/ordering/mod.rs target/release/ssi-candidate-worker \
+            | tee ../artifacts/SHA256SUMS
+          git status --short | tee ../artifacts/status.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: matrices-hole-validation-${{ github.run_id }}
+          path: artifacts
+          retention-days: 14
