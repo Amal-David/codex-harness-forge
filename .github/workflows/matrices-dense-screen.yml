@@ -1,0 +1,109 @@
+name: Matrices fast 25-lane dense metric screen
+
+on:
+  push:
+    branches:
+      - yukon-matrices-fast-20260829
+    paths:
+      - 'matrices-screen/**'
+      - '.github/workflows/matrices-dense-screen.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: matrices-fast-dense-screen
+  cancel-in-progress: true
+
+jobs:
+  screen:
+    name: ${{ matrix.id }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      max-parallel: 25
+      matrix:
+        include:
+          - { id: amd075-control, metric: AMD075, alpha: '0.75' }
+          - { id: sqdiv-a050, metric: SqDiv, alpha: '0.50' }
+          - { id: sqdiv-a075, metric: SqDiv, alpha: '0.75' }
+          - { id: sqpure-a050, metric: SqPure, alpha: '0.50' }
+          - { id: sqpure-a075, metric: SqPure, alpha: '0.75' }
+          - { id: ammf-a050, metric: Ammf, alpha: '0.50' }
+          - { id: ammf-a075, metric: Ammf, alpha: '0.75' }
+          - { id: amindnorm-a050, metric: AmindNorm, alpha: '0.50' }
+          - { id: amindnorm-a075, metric: AmindNorm, alpha: '0.75' }
+          - { id: degsqrt-a050, metric: DegSqrt, alpha: '0.50' }
+          - { id: degsqrt-a075, metric: DegSqrt, alpha: '0.75' }
+          - { id: degsqrt-a100, metric: DegSqrt, alpha: '1.00' }
+          - { id: degsqrt-a125, metric: DegSqrt, alpha: '1.25' }
+          - { id: degp075-a050, metric: DegP075, alpha: '0.50' }
+          - { id: degp075-a075, metric: DegP075, alpha: '0.75' }
+          - { id: degp075-a100, metric: DegP075, alpha: '1.00' }
+          - { id: degp125-a050, metric: DegP125, alpha: '0.50' }
+          - { id: degp125-a075, metric: DegP125, alpha: '0.75' }
+          - { id: degdivnvsqrtwf-a050, metric: DegDivNvSqrtWf, alpha: '0.50' }
+          - { id: degdivnvsqrtwf-a075, metric: DegDivNvSqrtWf, alpha: '0.75' }
+          - { id: degdivnvwfp15-a050, metric: DegDivNvWfP15, alpha: '0.50' }
+          - { id: degdivnvwfp15-a075, metric: DegDivNvWfP15, alpha: '0.75' }
+          - { id: degplusdegme-a075, metric: DegPlusDegme, alpha: '0.75' }
+          - { id: degdivnvdegme-a050, metric: DegDivNvDegme, alpha: '0.50' }
+          - { id: degdivnvdegme-a075, metric: DegDivNvDegme, alpha: '0.75' }
+    env:
+      HYPOTHESIS_ID: ${{ matrix.id }}
+      HYPOTHESIS_METRIC: ${{ matrix.metric }}
+      HYPOTHESIS_ALPHA: ${{ matrix.alpha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute isolated hypothesis lane
+        run: bash matrices-screen/screen-one.sh
+      - name: Upload lane evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dense-screen-${{ matrix.id }}
+          path: matrices-screen/artifacts/${{ matrix.id }}
+          if-no-files-found: warn
+          retention-days: 7
+
+  aggregate:
+    if: always()
+    needs: screen
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dense-screen-*
+          path: lanes
+      - name: Aggregate and rank completed lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          find lanes -name meta.tsv -print0 | sort -z | xargs -0 cat > meta-all.tsv || true
+          find lanes -name results.tsv -print0 | sort -z | xargs -0 cat > results-all.tsv || true
+          python3 - <<'PY'
+          from pathlib import Path
+          rows=[]
+          for line in Path('results-all.tsv').read_text(errors='replace').splitlines():
+              p=line.split('\t')
+              if len(p)>=4 and p[0]=='HYPOTHESIS_SUMMARY':
+                  try: rows.append((float(p[2]), int(p[3]), p[1]))
+                  except ValueError: pass
+          with open('ranking.tsv','w') as f:
+              f.write('rank\thypothesis\tsynthetic_geomean_vs_amd\tmax_order_us\n')
+              for i,(g,t,h) in enumerate(sorted(rows),1):
+                  f.write(f'{i}\t{h}\t{g:.12f}\t{t}\n')
+          print(Path('ranking.tsv').read_text())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dense-screen-ranking-${{ github.run_id }}
+          path: |
+            meta-all.tsv
+            results-all.tsv
+            ranking.tsv
+          if-no-files-found: warn
+          retention-days: 7
