@@ -1,0 +1,83 @@
+name: Matrices fast ASL reconstruction calibration
+
+on:
+  push:
+    branches: [yukon-matrices-frontier-search-20260829]
+    paths:
+      - '.github/workflows/matrices-reconstruct-calibrate.yml'
+      - 'matrices-frontier/reconstruction/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: matrices-fast-reconstruction-calibration
+  cancel-in-progress: true
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11'
+      - name: Install Git LFS and clone challenge corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y git-lfs curl
+          git lfs install
+          git clone --depth 1 https://github.com/Layr-Labs/ssi-ordering-challenge.git challenge
+          cd challenge
+          git lfs pull
+          test "$(wc -l < corpus/dev/patterns.jsonl)" = 300
+          git rev-parse HEAD | tee ../frontier-sha.txt
+      - name: Install ASL-backed Julia reader
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p matrices-frontier/reconstruction/julia-env
+          julia --project=matrices-frontier/reconstruction/julia-env -e '
+            using Pkg
+            Pkg.add(["AmplNLReader", "NLPModels", "JSON3"])
+            Pkg.precompile()
+          '
+      - name: Select and download calibration .nl files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p nl calibration
+          export CAL_NAMES='slay06m,sssd25-08,rsyn0810m04m,pooling_sppc3pq,sporttournament48,pooling_sppa9pq,edgecross10-090,maxcsp-ehi-85-297-71,st_bpaf1a,risk2bpb,qap,rsyn0830m04m,lop97icx,chain400,mpbp_07,sonetgr17,p_ball_30b_7p_2d_h,pinene200,unitcommit_200_100_1_mod_8,ex8_3_9,faclay75,acopf_case9241pegase_qcqp'
+          python3 - <<'PY'
+          import os, pathlib, subprocess, urllib.parse
+          out=pathlib.Path('nl')
+          names=[x for x in os.environ['CAL_NAMES'].split(',') if x]
+          for name in names:
+              url='https://www.minlplib.org/nl/'+urllib.parse.quote(name,safe='')+'.nl'
+              path=out/(name+'.nl')
+              print('DOWNLOAD',name,url,flush=True)
+              subprocess.run(['curl','-fsSL','--retry','4','--retry-all-errors',url,'-o',str(path)],check=True)
+          PY
+          du -sh nl
+      - name: Reconstruct and require bit-for-bit matches
+        shell: bash
+        env:
+          CAL_NAMES: slay06m,sssd25-08,rsyn0810m04m,pooling_sppc3pq,sporttournament48,pooling_sppa9pq,edgecross10-090,maxcsp-ehi-85-297-71,st_bpaf1a,risk2bpb,qap,rsyn0830m04m,lop97icx,chain400,mpbp_07,sonetgr17,p_ball_30b_7p_2d_h,pinene200,unitcommit_200_100_1_mod_8,ex8_3_9,faclay75,acopf_case9241pegase_qcqp
+        run: |
+          set -o pipefail
+          julia --project=matrices-frontier/reconstruction/julia-env \
+            matrices-frontier/reconstruction/reconstruct.jl \
+            challenge/corpus/dev/patterns.jsonl nl calibration \
+            2>&1 | tee calibration/reconstruct.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: matrices-reconstruction-calibration-${{ github.run_id }}
+          path: |
+            calibration
+            frontier-sha.txt
+          retention-days: 14
