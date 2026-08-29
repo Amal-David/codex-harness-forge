@@ -5,7 +5,7 @@ on:
     branches:
       - yukon-matrices-fast-20260829
     paths:
-      - 'yukon-matrices/apply-and-submit.sh'
+      - 'yukon-matrices/apply-and-submit-v2.sh'
       - '.github/workflows/yukon-matrices-secure-submit.yml'
 
 permissions:
@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: yukon-matrices-secure-finalist-submit
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   submit:
@@ -29,8 +29,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Secure login, exact Yukon clone, setup, and untouched baseline
         run: bash yukon-matrices/secure-baseline.sh
-      - name: Compose, rerun, test, and submit finalist
-        run: bash yukon-matrices/apply-and-submit.sh
+      - name: Compose, rerun, test, and submit upgraded finalist
+        run: bash yukon-matrices/apply-and-submit-v2.sh
       - name: Upload complete submission evidence
         if: always()
         uses: actions/upload-artifact@v4
