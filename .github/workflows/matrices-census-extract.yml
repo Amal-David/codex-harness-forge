@@ -1,0 +1,135 @@
+name: Matrices fast eval census extraction
+
+on:
+  push:
+    branches: [yukon-matrices-frontier-search-20260829]
+    paths:
+      - '.github/workflows/matrices-census-extract.yml'
+      - 'matrices-frontier/census/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: matrices-fast-eval-census
+  cancel-in-progress: true
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch historical public grader log
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p matrices-frontier/census
+          url='https://api.github.com/repos/Layr-Labs/ssi-ordering-challenge/actions/jobs/95770734790/logs'
+          curl -fsSL --retry 5 --retry-all-errors \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "$url" -o matrices-frontier/census/eval-job.log
+          wc -c matrices-frontier/census/eval-job.log
+      - name: Parse exact 500-row census
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+
+          root = Path('matrices-frontier/census')
+          raw = root.joinpath('eval-job.log').read_text(errors='replace')
+          ansi = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
+          rows = []
+          # Log lines are timestamp + matrix name + n + nnz + base flops + candidate flops + ratio + '(capped)'.
+          pat = re.compile(
+              r'^(?:\ufeff)?\d{4}-\d\d-\d\dT[^Z]*Z\s+'
+              r'(?P<name>\S+)\s+'
+              r'(?P<n>\d+)\s+(?P<nnz>\d+)\s+'
+              r'(?P<base>\d+)\s+(?P<cand>\d+)\s+'
+              r'(?P<ratio>\d+(?:\.\d+)?)\s+\(capped\)\s*$'
+          )
+          seen = set()
+          for line in raw.splitlines():
+              line = ansi.sub('', line)
+              m = pat.match(line)
+              if not m:
+                  continue
+              d = m.groupdict()
+              name = d['name']
+              # GitHub masks the literal substring "auto" in logs.
+              if name.startswith('***corr_'):
+                  name = 'autocorr_' + name[len('***corr_'):]
+              key = (name, int(d['n']), int(d['nnz']), int(d['base']))
+              if key in seen:
+                  continue
+              seen.add(key)
+              rows.append({
+                  'index': len(rows),
+                  'name': name,
+                  'n': int(d['n']),
+                  'nnz': int(d['nnz']),
+                  'amd_flops': int(d['base']),
+                  'historical_candidate_flops': int(d['cand']),
+                  'historical_ratio': float(d['ratio']),
+              })
+          if len(rows) != 500:
+              raise SystemExit(f'expected 500 unique matrix rows, found {len(rows)}')
+          tsv = root / 'eval-census.tsv'
+          with tsv.open('w') as f:
+              f.write('index\tname\tn\tnnz\tamd_flops\thistorical_candidate_flops\thistorical_ratio\tdensity\tbucket\n')
+              for r in rows:
+                  bucket = 'lt_1k' if r['n'] < 1000 else ('1k_10k' if r['n'] < 10000 else 'gt_10k')
+                  density = r['nnz'] / max(1, r['n'])
+                  f.write(f"{r['index']}\t{r['name']}\t{r['n']}\t{r['nnz']}\t{r['amd_flops']}\t{r['historical_candidate_flops']}\t{r['historical_ratio']:.9f}\t{density:.9f}\t{bucket}\n")
+          root.joinpath('eval-census.json').write_text(json.dumps(rows, indent=2) + '\n')
+          stats = {
+              'rows': len(rows),
+              'bucket_counts': {
+                  'lt_1k': sum(r['n'] < 1000 for r in rows),
+                  '1k_10k': sum(1000 <= r['n'] < 10000 for r in rows),
+                  'gt_10k': sum(r['n'] >= 10000 for r in rows),
+              },
+              'n_min': min(r['n'] for r in rows),
+              'n_max': max(r['n'] for r in rows),
+              'nnz_min': min(r['nnz'] for r in rows),
+              'nnz_max': max(r['nnz'] for r in rows),
+          }
+          root.joinpath('eval-census-stats.json').write_text(json.dumps(stats, indent=2) + '\n')
+          print(json.dumps(stats, indent=2))
+          PY
+          sha256sum matrices-frontier/census/eval-census.tsv matrices-frontier/census/eval-census.json > matrices-frontier/census/SHA256SUMS
+      - name: Show high-leverage structural slices
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import csv
+          rows = list(csv.DictReader(open('matrices-frontier/census/eval-census.tsv'), delimiter='\t'))
+          slices = {
+            'mid_dense_metis': lambda r: 8000 <= int(r['n']) <= 10500 and 250000 <= int(r['nnz']) <= 310000 and 25 <= float(r['density']) <= 35,
+            'dense_amd_holes': lambda r: 800000 <= int(r['nnz']) < 1600000 and float(r['density']) > 20,
+            'wide_mid_band': lambda r: 200000 <= int(r['nnz']) < 400000 and float(r['density']) > 20 and int(r['n']) < 20000,
+          }
+          for label, pred in slices.items():
+              print(f'\n[{label}]')
+              for r in rows:
+                  if pred(r):
+                      print(r['index'], r['name'], r['n'], r['nnz'], r['density'], r['amd_flops'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matrices-eval-census-${{ github.run_id }}
+          path: |
+            matrices-frontier/census/eval-census.tsv
+            matrices-frontier/census/eval-census.json
+            matrices-frontier/census/eval-census-stats.json
+            matrices-frontier/census/SHA256SUMS
+          retention-days: 14
