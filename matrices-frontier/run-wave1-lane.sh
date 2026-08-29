@@ -46,6 +46,9 @@ section "prerequisites"
 sudo apt-get update -y
 sudo apt-get install -y --no-install-recommends \
   build-essential gcc g++ git git-lfs jq ca-certificates pkg-config bubblewrap
+# Ubuntu's AppArmor default blocks Bubblewrap's loopback setup unless
+# unprivileged user namespaces are explicitly enabled for this ephemeral runner.
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 git lfs install
 rustup default stable
 cargo --version
