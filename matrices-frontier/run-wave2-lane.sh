@@ -37,6 +37,8 @@ free -h
 section prerequisites
 sudo apt-get update -y
 sudo apt-get install -y --no-install-recommends build-essential gcc g++ git git-lfs jq ca-certificates pkg-config bubblewrap
+# Ubuntu 24.04 hosted runners otherwise deny Bubblewrap's loopback namespace.
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 git lfs install
 rustup default stable
 if [[ "$(cargo deny --version 2>/dev/null || true)" != "cargo-deny 0.20.2" ]]; then
