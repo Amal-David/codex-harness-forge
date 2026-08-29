@@ -1,0 +1,34 @@
+name: Matrices fast offline dev kit
+
+on:
+  push:
+    branches:
+      - yukon-matrices-fast-20260829
+    paths:
+      - 'matrices-devkit/**'
+      - '.github/workflows/matrices-devkit.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: matrices-fast-devkit
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build reproducible offline dev kit
+        run: bash matrices-devkit/build-devkit.sh
+      - name: Upload dev kit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrices-fast-devkit-${{ github.run_id }}
+          path: matrices-devkit/artifacts
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
