@@ -1,0 +1,183 @@
+name: Matrices frontier Wave 3 — 30-agent quotient-metric slot council
+
+on:
+  push:
+    branches: [yukon-matrices-fast-20260829]
+    paths:
+      - 'matrices-frontier/run-wave3-metric-slot.sh'
+      - '.github/workflows/matrices-frontier-wave3.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  pin:
+    runs-on: ubuntu-24.04
+    outputs:
+      frontier_sha: ${{ steps.frontier.outputs.sha }}
+    steps:
+      - name: Pin one upstream frontier for the whole metric council
+        id: frontier
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git ls-remote https://github.com/Layr-Labs/ssi-ordering-challenge.git refs/heads/main | awk '{print $1}')"
+          test -n "$sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Pinned frontier: $sha"
+
+      - name: Build exact cargo-deny once
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup default stable
+          cargo install cargo-deny --version 0.20.2 --locked
+          cargo deny --version
+
+      - name: Share cargo-deny with all lanes
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-deny-wave3-0.20.2-${{ github.run_id }}
+          path: /home/runner/.cargo/bin/cargo-deny
+          retention-days: 2
+          compression-level: 0
+
+  lane:
+    needs: pin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      max-parallel: 30
+      matrix:
+        include:
+          - { id: W3-00-control, persona: P24-orchestrator, mode: control, metric: DegSqrt, alpha: '0.75' }
+          - { id: W3-01-degsqrt-a050, persona: P15-surrogate, mode: custom, metric: DegSqrt, alpha: '0.50' }
+          - { id: W3-02-degsqrt-a0625, persona: P15-surrogate, mode: custom, metric: DegSqrt, alpha: '0.625' }
+          - { id: W3-03-degsqrt-a075, persona: P15-surrogate, mode: custom, metric: DegSqrt, alpha: '0.75' }
+          - { id: W3-04-degsqrt-a0875, persona: P15-surrogate, mode: custom, metric: DegSqrt, alpha: '0.875' }
+          - { id: W3-05-degsqrt-a100, persona: P15-surrogate, mode: custom, metric: DegSqrt, alpha: '1.0' }
+          - { id: W3-06-degsqrt-a125, persona: P15-surrogate, mode: custom, metric: DegSqrt, alpha: '1.25' }
+          - { id: W3-07-degsqrt-a150, persona: P15-surrogate, mode: custom, metric: DegSqrt, alpha: '1.5' }
+          - { id: W3-08-degsqrt-a200, persona: P15-surrogate, mode: custom, metric: DegSqrt, alpha: '2.0' }
+          - { id: W3-09-degsqrt-a250, persona: P15-surrogate, mode: custom, metric: DegSqrt, alpha: '2.5' }
+          - { id: W3-10-degsqrt-a500, persona: P15-surrogate, mode: custom, metric: DegSqrt, alpha: '5.0' }
+          - { id: W3-11-sqdiv-a050, persona: P01-sparse-direct, mode: custom, metric: SqDiv, alpha: '0.50' }
+          - { id: W3-12-sqdiv-a075, persona: P01-sparse-direct, mode: custom, metric: SqDiv, alpha: '0.75' }
+          - { id: W3-13-sqdiv-a100, persona: P01-sparse-direct, mode: custom, metric: SqDiv, alpha: '1.0' }
+          - { id: W3-14-sqpure-a050, persona: P01-sparse-direct, mode: custom, metric: SqPure, alpha: '0.50' }
+          - { id: W3-15-sqpure-a075, persona: P01-sparse-direct, mode: custom, metric: SqPure, alpha: '0.75' }
+          - { id: W3-16-sqpure-a100, persona: P01-sparse-direct, mode: custom, metric: SqPure, alpha: '1.0' }
+          - { id: W3-17-degp075-a050, persona: P15-surrogate, mode: custom, metric: DegP075, alpha: '0.50' }
+          - { id: W3-18-degp075-a075, persona: P15-surrogate, mode: custom, metric: DegP075, alpha: '0.75' }
+          - { id: W3-19-degp075-a100, persona: P15-surrogate, mode: custom, metric: DegP075, alpha: '1.0' }
+          - { id: W3-20-degp125-a075, persona: P15-surrogate, mode: custom, metric: DegP125, alpha: '0.75' }
+          - { id: W3-21-degp125-a100, persona: P15-surrogate, mode: custom, metric: DegP125, alpha: '1.0' }
+          - { id: W3-22-deg-nv-sqrtwf, persona: P15-surrogate, mode: custom, metric: DegDivNvSqrtWf, alpha: '0.75' }
+          - { id: W3-23-deg-nv-wfp15, persona: P15-surrogate, mode: custom, metric: DegDivNvWfP15, alpha: '0.75' }
+          - { id: W3-24-deg-plus-degme, persona: P01-sparse-direct, mode: custom, metric: DegPlusDegme, alpha: '0.75' }
+          - { id: W3-25-deg-nv-degme, persona: P01-sparse-direct, mode: custom, metric: DegDivNvDegme, alpha: '0.75' }
+          - { id: W3-26-ammf, persona: P03-min-degree, mode: custom, metric: Ammf, alpha: '0.75' }
+          - { id: W3-27-amindnorm, persona: P03-min-degree, mode: custom, metric: AmindNorm, alpha: '0.75' }
+          - { id: W3-28-generic-deg2-nv-wf05, persona: P15-surrogate, mode: generic, metric: extra_deg2_div_nv_wf05, alpha: '2.5' }
+          - { id: W3-29-generic-deg-nv-degme2, persona: P15-surrogate, mode: generic, metric: extra_deg_div_nv_degme2, alpha: '0.75' }
+
+    env:
+      HYPOTHESIS_ID: ${{ matrix.id }}
+      PERSONA: ${{ matrix.persona }}
+      METRIC_MODE: ${{ matrix.mode }}
+      METRIC_NAME: ${{ matrix.metric }}
+      METRIC_ALPHA: ${{ matrix.alpha }}
+      FRONTIER_SHA: ${{ needs.pin.outputs.frontier_sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download exact cargo-deny
+        uses: actions/download-artifact@v4
+        with:
+          name: cargo-deny-wave3-0.20.2-${{ github.run_id }}
+          path: ${{ runner.temp }}/cargo-deny
+
+      - name: Install shared cargo-deny binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cargo/bin"
+          cp "${RUNNER_TEMP}/cargo-deny/cargo-deny" "$HOME/.cargo/bin/cargo-deny"
+          chmod 755 "$HOME/.cargo/bin/cargo-deny"
+          "$HOME/.cargo/bin/cargo-deny" --version
+
+      - name: Enable Bubblewrap user namespaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Execute one quotient-metric replacement
+        shell: bash
+        run: bash matrices-frontier/run-wave3-metric-slot.sh
+
+      - name: Upload lane evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrices-wave3-${{ matrix.id }}
+          path: matrices-frontier/artifacts-wave3/${{ matrix.id }}
+          if-no-files-found: warn
+          retention-days: 7
+
+  aggregate:
+    if: always()
+    needs: [pin, lane]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: matrices-wave3-*
+          path: lanes
+
+      - name: Rank quotient-metric replacements
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import csv, math
+          rows=[]
+          for meta in sorted(Path('lanes').rglob('meta.tsv')):
+              d={}
+              for line in meta.read_text(errors='replace').splitlines():
+                  if '\t' in line:
+                      k,v=line.split('\t',1); d[k]=v
+              d['meta_path']=str(meta); rows.append(d)
+          control=next((r for r in rows if r.get('hypothesis')=='W3-00-control' and r.get('status')=='ok'),None)
+          base=float(control['score']) if control else math.nan
+          def val(r):
+              try: return float(r.get('score','nan'))
+              except ValueError: return math.nan
+          ok=[r for r in rows if r.get('status')=='ok' and math.isfinite(val(r))]
+          ok.sort(key=val)
+          with open('ranking.tsv','w',newline='') as f:
+              w=csv.writer(f,delimiter='\t')
+              w.writerow(['rank','hypothesis','persona','mode','metric','alpha','score','delta_vs_control','fill','frontier_sha'])
+              for i,r in enumerate(ok,1):
+                  s=val(r); d=s-base if math.isfinite(base) else math.nan
+                  w.writerow([i,r.get('hypothesis'),r.get('persona'),r.get('metric_mode'),r.get('metric_name'),r.get('metric_alpha'),f'{s:.9f}',f'{d:+.9f}' if math.isfinite(d) else '',r.get('fill'),r.get('frontier_sha')])
+          with open('failures.tsv','w',newline='') as f:
+              w=csv.writer(f,delimiter='\t'); w.writerow(['hypothesis','persona','mode','metric','alpha','phase','status','frontier_sha','meta_path'])
+              for r in rows:
+                  if r.get('status')!='ok':
+                      w.writerow([r.get('hypothesis'),r.get('persona'),r.get('metric_mode'),r.get('metric_name'),r.get('metric_alpha'),r.get('phase'),r.get('status'),r.get('frontier_sha'),r.get('meta_path')])
+          print(Path('ranking.tsv').read_text())
+          print(Path('failures.tsv').read_text())
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matrices-wave3-ranking-${{ github.run_id }}
+          path: |
+            ranking.tsv
+            failures.tsv
+          retention-days: 14
