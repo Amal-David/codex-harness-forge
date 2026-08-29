@@ -1,0 +1,65 @@
+name: Matrices fast frontier snapshot
+
+on:
+  push:
+    branches: [yukon-matrices-frontier-search-20260829]
+    paths:
+      - '.github/workflows/matrices-frontier-snapshot.yml'
+      - 'matrices-frontier/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: matrices-fast-frontier-snapshot
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Git LFS and clone current frontier
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y git-lfs jq
+          git lfs install
+          rm -rf matrices-frontier/current
+          mkdir -p matrices-frontier
+          git clone --depth 1 https://github.com/Layr-Labs/ssi-ordering-challenge.git matrices-frontier/current
+          cd matrices-frontier/current
+          git lfs pull
+          git rev-parse HEAD | tee ../frontier-sha.txt
+          git log -1 --format='%H%x09%cI%x09%an%x09%s' | tee ../frontier-commit.tsv
+          wc -c corpus/dev/patterns.jsonl | tee ../corpus-bytes.txt
+          wc -l corpus/dev/patterns.jsonl | tee ../corpus-lines.txt
+          find src/ordering -type f -maxdepth 4 -print | sort > ../ordering-files.txt
+          cp README.md RULES.md benchmark.json ../
+      - name: Package source and corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd matrices-frontier
+          tar -C current -czf current-frontier.tgz \
+            README.md RULES.md benchmark.json Cargo.lock Cargo.toml.in candidate-worker/Cargo.toml.in \
+            scripts src/ordering ssi-scoring ssi-purity ssi-worker-protocol candidate-worker corpus/dev/patterns.jsonl
+          sha256sum current-frontier.tgz > current-frontier.tgz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matrices-frontier-snapshot-${{ github.run_id }}
+          path: |
+            matrices-frontier/current-frontier.tgz
+            matrices-frontier/current-frontier.tgz.sha256
+            matrices-frontier/frontier-sha.txt
+            matrices-frontier/frontier-commit.tsv
+            matrices-frontier/corpus-bytes.txt
+            matrices-frontier/corpus-lines.txt
+            matrices-frontier/ordering-files.txt
+            matrices-frontier/README.md
+            matrices-frontier/RULES.md
+            matrices-frontier/benchmark.json
+          retention-days: 7
