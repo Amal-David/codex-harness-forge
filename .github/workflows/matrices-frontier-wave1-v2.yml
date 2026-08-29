@@ -1,0 +1,205 @@
+name: Matrices frontier Wave 1 v2 — 30-agent budget council
+
+on:
+  push:
+    branches: [yukon-matrices-fast-20260829]
+    paths:
+      - 'matrices-frontier/run-wave1-lane.sh'
+      - '.github/workflows/matrices-frontier-wave1-v2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  pin:
+    runs-on: ubuntu-24.04
+    outputs:
+      frontier_sha: ${{ steps.frontier.outputs.sha }}
+    steps:
+      - name: Pin one upstream frontier for the whole council
+        id: frontier
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git ls-remote https://github.com/Layr-Labs/ssi-ordering-challenge.git refs/heads/main | awk '{print $1}')"
+          test -n "$sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Pinned frontier: $sha"
+
+      - name: Build exact cargo-deny once
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup default stable
+          cargo install cargo-deny --version 0.20.2 --locked
+          cargo deny --version
+
+      - name: Share cargo-deny with all lanes
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-deny-wave1-v2-0.20.2-${{ github.run_id }}
+          path: /home/runner/.cargo/bin/cargo-deny
+          retention-days: 2
+          compression-level: 0
+
+  lane:
+    needs: pin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      max-parallel: 30
+      matrix:
+        include:
+          - { id: W1-00-control, persona: P24-orchestrator, kind: control, const_name: '', value: '' }
+          - { id: W1-01-rgreedy-120m, persona: P03-min-degree, kind: const, const_name: RGREEDY_MID_BUDGET, value: '120_000_000' }
+          - { id: W1-02-rgreedy-100m, persona: P03-min-degree, kind: const, const_name: RGREEDY_MID_BUDGET, value: '100_000_000' }
+          - { id: W1-03-rgreedy-90m, persona: P03-min-degree, kind: const, const_name: RGREEDY_MID_BUDGET, value: '90_000_000' }
+          - { id: W1-04-rgreedy-75m, persona: P03-min-degree, kind: const, const_name: RGREEDY_MID_BUDGET, value: '75_000_000' }
+          - { id: W1-05-rgreedy-60m, persona: P03-min-degree, kind: const, const_name: RGREEDY_MID_BUDGET, value: '60_000_000' }
+          - { id: W1-06-rgreedy-45m, persona: P03-min-degree, kind: const, const_name: RGREEDY_MID_BUDGET, value: '45_000_000' }
+          - { id: W1-07-rgreedy-30m, persona: P03-min-degree, kind: const, const_name: RGREEDY_MID_BUDGET, value: '30_000_000' }
+          - { id: W1-08-rgreedy-15m, persona: P03-min-degree, kind: const, const_name: RGREEDY_MID_BUDGET, value: '15_000_000' }
+          - { id: W1-09-rgreedy-0, persona: P03-min-degree, kind: const, const_name: RGREEDY_MID_BUDGET, value: '0' }
+          - { id: W1-10-pair-budget-96m, persona: P06-combinatorial, kind: const, const_name: PAIR_DESCENT_OPS_BUDGET, value: '96_000_000' }
+          - { id: W1-11-pair-budget-64m, persona: P06-combinatorial, kind: const, const_name: PAIR_DESCENT_OPS_BUDGET, value: '64_000_000' }
+          - { id: W1-12-pair-budget-48m, persona: P06-combinatorial, kind: const, const_name: PAIR_DESCENT_OPS_BUDGET, value: '48_000_000' }
+          - { id: W1-13-pair-budget-32m, persona: P06-combinatorial, kind: const, const_name: PAIR_DESCENT_OPS_BUDGET, value: '32_000_000' }
+          - { id: W1-14-pair-budget-16m, persona: P06-combinatorial, kind: const, const_name: PAIR_DESCENT_OPS_BUDGET, value: '16_000_000' }
+          - { id: W1-15-pair-budget-0, persona: P06-combinatorial, kind: const, const_name: PAIR_DESCENT_OPS_BUDGET, value: '0' }
+          - { id: W1-16-pair-sweeps-3, persona: P06-combinatorial, kind: const, const_name: PAIR_DESCENT_SWEEPS, value: '3' }
+          - { id: W1-17-pair-sweeps-2, persona: P06-combinatorial, kind: const, const_name: PAIR_DESCENT_SWEEPS, value: '2' }
+          - { id: W1-18-pair-sweeps-1, persona: P06-combinatorial, kind: const, const_name: PAIR_DESCENT_SWEEPS, value: '1' }
+          - { id: W1-19-pair-sweeps-0, persona: P06-combinatorial, kind: const, const_name: PAIR_DESCENT_SWEEPS, value: '0' }
+          - { id: W1-20-minl-budget-45m, persona: P17-completion, kind: const, const_name: MINL_OPS_BUDGET, value: '45_000_000' }
+          - { id: W1-21-minl-budget-30m, persona: P17-completion, kind: const, const_name: MINL_OPS_BUDGET, value: '30_000_000' }
+          - { id: W1-22-minl-budget-20m, persona: P17-completion, kind: const, const_name: MINL_OPS_BUDGET, value: '20_000_000' }
+          - { id: W1-23-minl-budget-10m, persona: P17-completion, kind: const, const_name: MINL_OPS_BUDGET, value: '10_000_000' }
+          - { id: W1-24-minl-rounds-4, persona: P17-completion, kind: const, const_name: MINL_MAX_ROUNDS, value: '4' }
+          - { id: W1-25-minl-rounds-2, persona: P17-completion, kind: const, const_name: MINL_MAX_ROUNDS, value: '2' }
+          - { id: W1-26-minl-nnz-500k, persona: P17-completion, kind: const, const_name: MINL_MAX_NNZ, value: '500_000' }
+          - { id: W1-27-minl-nnz-300k, persona: P17-completion, kind: const, const_name: MINL_MAX_NNZ, value: '300_000' }
+          - { id: W1-28-orbit-budget-10m, persona: P17-completion, kind: const, const_name: ORBIT_OPS_BUDGET, value: '10_000_000' }
+          - { id: W1-29-pharmakos-rounds-3, persona: P17-completion, kind: const, const_name: PHARMAKOS_MAX_ROUNDS, value: '3' }
+
+    env:
+      HYPOTHESIS_ID: ${{ matrix.id }}
+      PERSONA: ${{ matrix.persona }}
+      PATCH_KIND: ${{ matrix.kind }}
+      CONST_NAME: ${{ matrix.const_name }}
+      CONST_VALUE: ${{ matrix.value }}
+      FRONTIER_SHA: ${{ needs.pin.outputs.frontier_sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download exact cargo-deny
+        uses: actions/download-artifact@v4
+        with:
+          name: cargo-deny-wave1-v2-0.20.2-${{ github.run_id }}
+          path: ${{ runner.temp }}/cargo-deny
+
+      - name: Install shared cargo-deny binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cargo/bin"
+          cp "${RUNNER_TEMP}/cargo-deny/cargo-deny" "$HOME/.cargo/bin/cargo-deny"
+          chmod 755 "$HOME/.cargo/bin/cargo-deny"
+          "$HOME/.cargo/bin/cargo-deny" --version
+
+      - name: Enable Bubblewrap user namespaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Execute isolated full-corpus lane
+        shell: bash
+        run: bash matrices-frontier/run-wave1-lane.sh
+
+      - name: Upload lane evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrices-wave1-v2-${{ matrix.id }}
+          path: matrices-frontier/artifacts/${{ matrix.id }}
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 6
+
+  aggregate:
+    if: always()
+    needs: [pin, lane]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download all lane evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: matrices-wave1-v2-*
+          path: lanes
+
+      - name: Rank exact scores and compare with control
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import csv
+          import math
+
+          rows = []
+          for meta in sorted(Path("lanes").rglob("meta.tsv")):
+              data = {}
+              for line in meta.read_text(errors="replace").splitlines():
+                  if "\t" in line:
+                      k, v = line.split("\t", 1)
+                      data[k] = v
+              data["meta_path"] = str(meta)
+              rows.append(data)
+
+          control = next((r for r in rows if r.get("hypothesis") == "W1-00-control" and r.get("status") == "ok"), None)
+          base = float(control["score"]) if control else math.nan
+
+          def score_of(r):
+              try:
+                  return float(r.get("score", "nan"))
+              except ValueError:
+                  return math.nan
+
+          ok = [r for r in rows if r.get("status") == "ok" and math.isfinite(score_of(r))]
+          ok.sort(key=score_of)
+
+          with open("ranking.tsv", "w", newline="") as f:
+              w = csv.writer(f, delimiter="\t")
+              w.writerow(["rank", "hypothesis", "persona", "score", "delta_vs_control", "fill", "frontier_sha", "mutation"])
+              for i, r in enumerate(ok, 1):
+                  s = score_of(r)
+                  delta = s - base if math.isfinite(base) else math.nan
+                  mutation = "control" if r.get("patch_kind") == "control" else f'{r.get("const_name")}={r.get("const_value")}'
+                  w.writerow([i, r.get("hypothesis"), r.get("persona"), f"{s:.9f}",
+                              f"{delta:+.9f}" if math.isfinite(delta) else "",
+                              r.get("fill"), r.get("frontier_sha"), mutation])
+
+          with open("failures.tsv", "w", newline="") as f:
+              w = csv.writer(f, delimiter="\t")
+              w.writerow(["hypothesis", "persona", "phase", "status", "frontier_sha", "mutation", "meta_path"])
+              for r in rows:
+                  if r.get("status") != "ok":
+                      mutation = "control" if r.get("patch_kind") == "control" else f'{r.get("const_name")}={r.get("const_value")}'
+                      w.writerow([r.get("hypothesis"), r.get("persona"), r.get("phase"), r.get("status"),
+                                  r.get("frontier_sha"), mutation, r.get("meta_path")])
+
+          print(Path("ranking.tsv").read_text())
+          print(Path("failures.tsv").read_text())
+          PY
+
+      - name: Upload council ranking
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrices-wave1-v2-ranking-${{ github.run_id }}
+          path: |
+            ranking.tsv
+            failures.tsv
+          retention-days: 14
