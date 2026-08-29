@@ -1,0 +1,33 @@
+name: Matrices fast finalist 328 plus 330
+
+on:
+  push:
+    branches:
+      - yukon-matrices-fast-20260829
+    paths:
+      - 'matrices-candidate/**'
+      - '.github/workflows/matrices-candidate-328-330.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: matrices-fast-finalist-328-330
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compose, build, score, and test finalist
+        run: bash matrices-candidate/validate-328-330.sh
+      - name: Upload finalist evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrices-fast-finalist-328-330-${{ github.run_id }}
+          path: matrices-candidate/artifacts/328-330
+          if-no-files-found: warn
+          retention-days: 7
