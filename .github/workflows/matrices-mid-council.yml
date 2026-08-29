@@ -1,0 +1,168 @@
+name: Matrices fast 24-lane mid-band council
+
+on:
+  push:
+    branches: [yukon-matrices-frontier-search-20260829]
+    paths:
+      - '.github/workflows/matrices-mid-council.yml'
+      - 'matrices-frontier/council/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BASE_SHA: 5f024a7d77810577a461e8a43dcf92db1c138f74
+  CARGO_TERM_COLOR: always
+
+jobs:
+  sweep:
+    name: ${{ matrix.persona }} / ${{ matrix.matrix }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    strategy:
+      fail-fast: false
+      max-parallel: 24
+      matrix:
+        include:
+          - {persona: separator-cartographer, matrix: squfl020-150}
+          - {persona: multilevel-partitioner, matrix: emfl100_3_3}
+          - {persona: kkt-structure-analyst, matrix: supplychainr1_053050}
+          - {persona: graph-coarsening-specialist, matrix: gasprod_sarawak81}
+          - {persona: quotient-graph-mathematician, matrix: faclay30}
+          - {persona: fill-complexity-analyst, matrix: popdynm200}
+          - {persona: metis-parameter-scientist, matrix: nd_netgen-3000-1-1-b-b-ns_7}
+          - {persona: nested-dissection-researcher, matrix: powerflow0300p}
+          - {persona: degree-metric-designer, matrix: syn40m04hfsg}
+          - {persona: elimination-tree-analyst, matrix: rsyn0840m04m}
+          - {persona: sparse-geometry-specialist, matrix: p_ball_30b_7p_2d_h}
+          - {persona: portfolio-diversity-engineer, matrix: methanol400}
+          - {persona: amf-alpha-researcher, matrix: arki0013}
+          - {persona: amd-option-researcher, matrix: mpbp_48}
+          - {persona: nonlinear-kkt-specialist, matrix: crudeoil_pooling_dt3}
+          - {persona: symbolic-factorization-scientist, matrix: faclay35}
+          - {persona: separator-stability-analyst, matrix: gabriel09}
+          - {persona: graph-cut-robustness-engineer, matrix: edgecross24-115}
+          - {persona: ordering-local-searcher, matrix: procurement1large}
+          - {persona: phase-interaction-analyst, matrix: chp_shorttermplan2d}
+          - {persona: hub-structure-specialist, matrix: ringpack_30_2}
+          - {persona: dense-row-deferral-scientist, matrix: nuclear10a}
+          - {persona: basin-diversity-researcher, matrix: rsyn0830m04m}
+          - {persona: adversarial-gate-auditor, matrix: maxcsp-ehi-85-297-71}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git-lfs gcc g++ build-essential bubblewrap pkg-config libssl-dev
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          git lfs install
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          if [[ "$(cargo deny --version 2>/dev/null || true)" != "cargo-deny 0.20.2" ]]; then
+            cargo install cargo-deny --version 0.20.2 --locked
+          fi
+      - name: Clone and prepare exact frontier
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone https://github.com/Layr-Labs/ssi-ordering-challenge.git work
+          cd work
+          git checkout --detach "$BASE_SHA"
+          git lfs pull
+          bash scripts/prepare-build.sh
+          cargo test --release -p ssi-candidate-worker --no-run --offline --locked
+      - name: Run 58-candidate direct-attribution sweep
+        shell: bash
+        working-directory: work
+        env:
+          SSI_MID_ONLY: ${{ matrix.matrix }}
+          SSI_MID_FLOOR: '0'
+        run: |
+          set -euo pipefail
+          cargo test --release -p ssi-candidate-worker --offline --locked \
+            probe_mid_sweep -- --ignored --nocapture --test-threads=1 \
+            2>&1 | tee ../sweep.log
+          grep '^SWEEP' ../sweep.log > ../sweep.tsv
+          test "$(($(wc -l < ../sweep.tsv)-1))" -eq 58
+          python3 - <<'PY'
+          import csv,json
+          rows=list(csv.DictReader(open('../sweep.tsv'),delimiter='\t'))
+          cur=float(rows[0]['cur_r'])
+          wins=[]
+          for r in rows:
+              try: ratio=float(r['r']); secs=float(r['s'])
+              except: continue
+              if ratio < cur-1e-9:
+                  wins.append({'candidate':r['cand'],'ratio':ratio,'delta':ratio-cur,'seconds':secs})
+          wins.sort(key=lambda x:x['ratio'])
+          out={'persona':'${{ matrix.persona }}','matrix':'${{ matrix.matrix }}','current_ratio':cur,'hypotheses':len(rows),'wins':wins}
+          open('../summary.json','w').write(json.dumps(out,indent=2)+'\n')
+          print(json.dumps(out,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: council-${{ matrix.persona }}-${{ matrix.matrix }}
+          path: |
+            sweep.log
+            sweep.tsv
+            summary.json
+          retention-days: 14
+
+  summarize:
+    needs: sweep
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: council-*
+          path: council-results
+      - name: Merge 1,392 direct candidate evaluations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,glob,csv,collections,math,os
+          summaries=[]
+          for p in glob.glob('council-results/**/summary.json',recursive=True):
+              try: summaries.append(json.load(open(p)))
+              except Exception as e: print('skip',p,e)
+          total=sum(x.get('hypotheses',0) for x in summaries)
+          wins=[]; by_candidate=collections.defaultdict(list)
+          for s in summaries:
+              for w in s.get('wins',[]):
+                  row={**w,'matrix':s['matrix'],'persona':s['persona'],'current_ratio':s['current_ratio']}
+                  wins.append(row); by_candidate[w['candidate']].append(row)
+          wins.sort(key=lambda x:x['delta'])
+          ranking=[]
+          for cand,rs in by_candidate.items():
+              ranking.append({
+                  'candidate':cand,'win_count':len(rs),
+                  'sum_ratio_delta':sum(r['delta'] for r in rs),
+                  'best_delta':min(r['delta'] for r in rs),
+                  'max_seconds':max(r['seconds'] for r in rs),
+                  'matrices':[r['matrix'] for r in sorted(rs,key=lambda x:x['delta'])],
+              })
+          ranking.sort(key=lambda x:(x['sum_ratio_delta'],x['max_seconds']))
+          report={'completed_lanes':len(summaries),'direct_candidate_evaluations':total,'direct_wins':len(wins),'candidate_ranking':ranking,'top_wins':wins[:100]}
+          open('council-report.json','w').write(json.dumps(report,indent=2)+'\n')
+          with open('council-ranking.tsv','w') as f:
+              f.write('candidate\twin_count\tsum_ratio_delta\tbest_delta\tmax_seconds\tmatrices\n')
+              for r in ranking:
+                  f.write(f"{r['candidate']}\t{r['win_count']}\t{r['sum_ratio_delta']:.9f}\t{r['best_delta']:.9f}\t{r['max_seconds']:.6f}\t{','.join(r['matrices'])}\n")
+          print(json.dumps({k:report[k] for k in ['completed_lanes','direct_candidate_evaluations','direct_wins']},indent=2))
+          print('\nTOP CANDIDATES')
+          for r in ranking[:30]: print(r)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matrices-mid-council-report-${{ github.run_id }}
+          path: |
+            council-report.json
+            council-ranking.tsv
+          retention-days: 14
