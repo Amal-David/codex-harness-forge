@@ -1,0 +1,39 @@
+name: matrices MINLPLib NL mirror
+
+on:
+  push:
+    branches:
+      - matrices-vm-sync-20260829-v4
+    paths:
+      - .github/workflows/matrices-minlplib-nl.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Download official MINLPLib AMPL NL corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          curl --fail --location --retry 5 --retry-delay 3 \
+            --output out/minlplib_nl.zip \
+            https://www.minlplib.org/minlplib_nl.zip
+          test -s out/minlplib_nl.zip
+          unzip -t out/minlplib_nl.zip
+          sha256sum out/minlplib_nl.zip | tee out/SHA256SUMS
+          stat -c '%n %s bytes' out/minlplib_nl.zip | tee out/SIZE.txt
+
+      - name: Upload official NL archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: minlplib-nl-official
+          path: out/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
