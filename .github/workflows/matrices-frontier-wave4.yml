@@ -1,0 +1,185 @@
+name: Matrices frontier Wave 4 downstream-budget council
+
+on:
+  push:
+    branches: [yukon-matrices-fast-20260829]
+    paths:
+      - 'matrices-frontier/run-wave4-budget.sh'
+      - '.github/workflows/matrices-frontier-wave4.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: matrices-frontier-wave4
+  cancel-in-progress: false
+
+jobs:
+  pin:
+    runs-on: ubuntu-24.04
+    outputs:
+      frontier_sha: ${{ steps.pin.outputs.frontier_sha }}
+    steps:
+      - name: Resolve exact current public frontier
+        id: pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git ls-remote https://github.com/Layr-Labs/ssi-ordering-challenge.git refs/heads/main | awk '{print $1}')"
+          test -n "$sha"
+          echo "frontier_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "$sha"
+
+      - name: Build exact cargo-deny once
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup default stable
+          cargo install cargo-deny --version 0.20.2 --locked
+          cargo deny --version
+          mkdir -p cargo-deny-artifact
+          cp "$HOME/.cargo/bin/cargo-deny" cargo-deny-artifact/cargo-deny
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cargo-deny-wave4-0.20.2-${{ github.run_id }}
+          path: cargo-deny-artifact/cargo-deny
+          retention-days: 2
+
+  lane:
+    needs: pin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      max-parallel: 31
+      matrix:
+        include:
+          - { id: W4-00-control, persona: P24-orchestrator, kind: control, const_name: '', value: '' }
+          - { id: W4-01-orbit-ops-15m, persona: P17-completion, kind: const, const_name: ORBIT_OPS_BUDGET, value: '15_000_000' }
+          - { id: W4-02-orbit-ops-10m, persona: P17-completion, kind: const, const_name: ORBIT_OPS_BUDGET, value: '10_000_000' }
+          - { id: W4-03-orbit-ops-5m, persona: P17-completion, kind: const, const_name: ORBIT_OPS_BUDGET, value: '5_000_000' }
+          - { id: W4-04-orbit-ops-0, persona: P17-completion, kind: const, const_name: ORBIT_OPS_BUDGET, value: '0' }
+          - { id: W4-05-orbit-rounds-2, persona: P17-completion, kind: const, const_name: ORBIT_MAX_ROUNDS, value: '2' }
+          - { id: W4-06-orbit-rounds-1, persona: P17-completion, kind: const, const_name: ORBIT_MAX_ROUNDS, value: '1' }
+          - { id: W4-07-orbit-rounds-0, persona: P17-completion, kind: const, const_name: ORBIT_MAX_ROUNDS, value: '0' }
+          - { id: W4-08-pharm-ops-15m, persona: P18-adversarial, kind: const, const_name: PHARMAKOS_OPS_BUDGET, value: '15_000_000' }
+          - { id: W4-09-pharm-ops-10m, persona: P18-adversarial, kind: const, const_name: PHARMAKOS_OPS_BUDGET, value: '10_000_000' }
+          - { id: W4-10-pharm-ops-5m, persona: P18-adversarial, kind: const, const_name: PHARMAKOS_OPS_BUDGET, value: '5_000_000' }
+          - { id: W4-11-pharm-ops-0, persona: P18-adversarial, kind: const, const_name: PHARMAKOS_OPS_BUDGET, value: '0' }
+          - { id: W4-12-pharm-rounds-4, persona: P18-adversarial, kind: const, const_name: PHARMAKOS_MAX_ROUNDS, value: '4' }
+          - { id: W4-13-pharm-rounds-3, persona: P18-adversarial, kind: const, const_name: PHARMAKOS_MAX_ROUNDS, value: '3' }
+          - { id: W4-14-pharm-rounds-2, persona: P18-adversarial, kind: const, const_name: PHARMAKOS_MAX_ROUNDS, value: '2' }
+          - { id: W4-15-pharm-rounds-1, persona: P18-adversarial, kind: const, const_name: PHARMAKOS_MAX_ROUNDS, value: '1' }
+          - { id: W4-16-pharm-rounds-0, persona: P18-adversarial, kind: const, const_name: PHARMAKOS_MAX_ROUNDS, value: '0' }
+          - { id: W4-17-pharm-tries-1, persona: P18-adversarial, kind: const, const_name: PHARMAKOS_TRIES_PER_ROUND, value: '1' }
+          - { id: W4-18-pharm-tries-0, persona: P18-adversarial, kind: const, const_name: PHARMAKOS_TRIES_PER_ROUND, value: '0' }
+          - { id: W4-19-telos-ms-work-1250k, persona: P07-local-search, kind: const, const_name: TELOS_MS_WORK_BUDGET, value: '1_250_000' }
+          - { id: W4-20-telos-ms-work-1000k, persona: P07-local-search, kind: const, const_name: TELOS_MS_WORK_BUDGET, value: '1_000_000' }
+          - { id: W4-21-telos-ms-work-750k, persona: P07-local-search, kind: const, const_name: TELOS_MS_WORK_BUDGET, value: '750_000' }
+          - { id: W4-22-telos-ms-work-500k, persona: P07-local-search, kind: const, const_name: TELOS_MS_WORK_BUDGET, value: '500_000' }
+          - { id: W4-23-telos-ms-work-250k, persona: P07-local-search, kind: const, const_name: TELOS_MS_WORK_BUDGET, value: '250_000' }
+          - { id: W4-24-telos-ms-work-0, persona: P07-local-search, kind: const, const_name: TELOS_MS_WORK_BUDGET, value: '0' }
+          - { id: W4-25-telos-ms-desc-5, persona: P07-local-search, kind: const, const_name: TELOS_MS_MAX_DESCENTS, value: '5' }
+          - { id: W4-26-telos-ms-desc-4, persona: P07-local-search, kind: const, const_name: TELOS_MS_MAX_DESCENTS, value: '4' }
+          - { id: W4-27-telos-ms-desc-3, persona: P07-local-search, kind: const, const_name: TELOS_MS_MAX_DESCENTS, value: '3' }
+          - { id: W4-28-telos-ms-desc-2, persona: P07-local-search, kind: const, const_name: TELOS_MS_MAX_DESCENTS, value: '2' }
+          - { id: W4-29-telos-ms-desc-1, persona: P07-local-search, kind: const, const_name: TELOS_MS_MAX_DESCENTS, value: '1' }
+          - { id: W4-30-telos-ms-desc-0, persona: P07-local-search, kind: const, const_name: TELOS_MS_MAX_DESCENTS, value: '0' }
+    env:
+      HYPOTHESIS_ID: ${{ matrix.id }}
+      PERSONA: ${{ matrix.persona }}
+      PATCH_KIND: ${{ matrix.kind }}
+      CONST_NAME: ${{ matrix.const_name }}
+      CONST_VALUE: ${{ matrix.value }}
+      FRONTIER_SHA: ${{ needs.pin.outputs.frontier_sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download exact cargo-deny
+        uses: actions/download-artifact@v4
+        with:
+          name: cargo-deny-wave4-0.20.2-${{ github.run_id }}
+          path: ${{ runner.temp }}/cargo-deny
+
+      - name: Install shared cargo-deny binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cargo/bin"
+          cp "${RUNNER_TEMP}/cargo-deny/cargo-deny" "$HOME/.cargo/bin/cargo-deny"
+          chmod 755 "$HOME/.cargo/bin/cargo-deny"
+          cargo deny --version
+
+      - name: Enable Bubblewrap user namespaces
+        shell: bash
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Execute isolated full-corpus lane
+        run: bash matrices-frontier/run-wave4-budget.sh
+
+      - name: Upload lane evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrices-wave4-${{ matrix.id }}
+          path: matrices-frontier/artifacts-wave4/${{ matrix.id }}
+          if-no-files-found: warn
+          retention-days: 7
+
+  aggregate:
+    if: always()
+    needs: [pin, lane]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: matrices-wave4-*
+          path: lanes
+
+      - name: Rank exact scores
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import csv, math
+          rows=[]
+          for meta in sorted(Path('lanes').rglob('meta.tsv')):
+              d={}
+              for line in meta.read_text(errors='replace').splitlines():
+                  if '\t' in line:
+                      k,v=line.split('\t',1); d[k]=v
+              d['meta_path']=str(meta); rows.append(d)
+          control=next((r for r in rows if r.get('hypothesis')=='W4-00-control' and r.get('status')=='ok'),None)
+          base=float(control['score']) if control else math.nan
+          def score(r):
+              try:return float(r.get('score','nan'))
+              except:return math.nan
+          ok=[r for r in rows if r.get('status')=='ok' and math.isfinite(score(r))]
+          ok.sort(key=score)
+          with open('ranking.tsv','w',newline='') as f:
+              w=csv.writer(f,delimiter='\t')
+              w.writerow(['rank','hypothesis','persona','score','delta_vs_control','fill','frontier_sha','mutation'])
+              for i,r in enumerate(ok,1):
+                  s=score(r); delta=s-base if math.isfinite(base) else math.nan
+                  mutation='control' if r.get('patch_kind')=='control' else f"{r.get('const_name')}={r.get('const_value')}"
+                  w.writerow([i,r.get('hypothesis'),r.get('persona'),f'{s:.9f}',f'{delta:+.9f}' if math.isfinite(delta) else '',r.get('fill'),r.get('frontier_sha'),mutation])
+          with open('failures.tsv','w',newline='') as f:
+              w=csv.writer(f,delimiter='\t'); w.writerow(['hypothesis','phase','status','mutation','meta_path'])
+              for r in rows:
+                  if r.get('status')!='ok':
+                      mutation='control' if r.get('patch_kind')=='control' else f"{r.get('const_name')}={r.get('const_value')}"
+                      w.writerow([r.get('hypothesis'),r.get('phase'),r.get('status'),mutation,r.get('meta_path')])
+          print(Path('ranking.tsv').read_text())
+          print(Path('failures.tsv').read_text())
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matrices-wave4-ranking-${{ github.run_id }}
+          path: |
+            ranking.tsv
+            failures.tsv
+          retention-days: 14
