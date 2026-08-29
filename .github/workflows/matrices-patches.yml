@@ -1,0 +1,26 @@
+name: Matrices fast patch bundle
+
+on:
+  push:
+    branches:
+      - yukon-matrices-fast-20260829
+    paths:
+      - 'matrices-patches/**'
+      - '.github/workflows/matrices-patches.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash matrices-patches/snapshot.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matrices-fast-patches-${{ github.run_id }}
+          path: matrices-patches/artifacts
+          if-no-files-found: error
+          retention-days: 7
