@@ -1,0 +1,35 @@
+name: matrices ASL source mirror
+
+on:
+  push:
+    branches:
+      - matrices-vm-sync-20260829-v4
+    paths:
+      - .github/workflows/matrices-asl-source.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Clone AMPL ASL and archive source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://github.com/ampl/asl.git asl
+          git -C asl rev-parse HEAD | tee asl/UPSTREAM_SHA.txt
+          tar -czf asl-source.tgz asl
+          sha256sum asl-source.tgz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ampl-asl-source
+          path: |
+            asl-source.tgz
+            SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
