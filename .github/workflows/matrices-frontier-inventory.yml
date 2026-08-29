@@ -1,0 +1,48 @@
+name: Matrices frontier source inventory
+
+on:
+  push:
+    branches: [yukon-matrices-fast-20260829]
+    paths:
+      - '.github/workflows/matrices-frontier-inventory.yml'
+      - 'matrices-frontier/inventory.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Clone latest promoted source without corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git ls-remote https://github.com/Layr-Labs/ssi-ordering-challenge.git refs/heads/main | awk '{print $1}')"
+          echo "$sha" > frontier-sha.txt
+          git clone --filter=blob:none --no-checkout https://github.com/Layr-Labs/ssi-ordering-challenge.git challenge
+          cd challenge
+          git sparse-checkout init --cone
+          git sparse-checkout set src/ordering
+          git checkout --detach "$sha"
+          cd ..
+          tar -czf src-ordering.tar.gz -C challenge src/ordering
+          grep -RInE '^[[:space:]]*(pub[[:space:]]+)?const[[:space:]]+[A-Z0-9_]+' challenge/src/ordering > constants.txt || true
+          grep -RInE '^[[:space:]]*(pub\([^)]*\)[[:space:]]+|pub[[:space:]]+)?fn[[:space:]]+[a-zA-Z0-9_]+' challenge/src/ordering > functions.txt || true
+          grep -RInE 'phase_mark|dtasks\.push|tasks\.push|consider\(|best_flops|order_with_options|pub fn order' challenge/src/ordering > pipeline-symbols.txt || true
+          find challenge/src/ordering -type f -printf '%P\t%s\n' | sort > files.tsv
+          sha256sum src-ordering.tar.gz constants.txt functions.txt pipeline-symbols.txt files.tsv frontier-sha.txt > SHA256SUMS.txt
+
+      - name: Upload source inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrices-frontier-inventory-${{ github.run_id }}
+          path: |
+            frontier-sha.txt
+            src-ordering.tar.gz
+            constants.txt
+            functions.txt
+            pipeline-symbols.txt
+            files.tsv
+            SHA256SUMS.txt
+          retention-days: 7
